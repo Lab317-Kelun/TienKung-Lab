@@ -308,16 +308,25 @@ def ankle_torque(env: TienKungEnv) -> torch.Tensor:
 
 def ankle_action(env: TienKungEnv) -> torch.Tensor:
     """Penalize ankle joint actions."""
+    action_indices = getattr(env, "action_ankle_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, env.ankle_joint_ids]), dim=1)
 
 
 def hip_roll_action(env: TienKungEnv) -> torch.Tensor:
     """Penalize hip roll joint actions."""
+    action_indices = getattr(env, "action_hip_roll_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, [env.left_leg_ids[1], env.right_leg_ids[1]]]), dim=1)
 
 
 def hip_yaw_action(env: TienKungEnv) -> torch.Tensor:
     """Penalize hip yaw joint actions."""
+    action_indices = getattr(env, "action_hip_yaw_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, [env.left_leg_ids[2], env.right_leg_ids[2]]]), dim=1)
 
 

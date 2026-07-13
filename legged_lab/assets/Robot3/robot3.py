@@ -2,7 +2,7 @@
 # All rights reserved.
 # Modifications are licensed under the BSD-3-Clause license.
 
-"""Configuration for Robot3 humanoid (30-DOF leg control)."""
+"""Configuration for Robot3 humanoid (12-DOF lower-body policy control)."""
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg

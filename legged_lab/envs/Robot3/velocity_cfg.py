@@ -89,7 +89,19 @@ class Robot3VelocityRewardCfg:
     joint_vel_l2 = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-0.001,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_hip_pitch_joint",
+                    ".*_hip_roll_joint",
+                    ".*_hip_yaw_joint",
+                    ".*_knee_joint",
+                    ".*_ankle_pitch_joint",
+                    ".*_ankle_roll_joint",
+                ],
+            ),
+        },
     )
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)

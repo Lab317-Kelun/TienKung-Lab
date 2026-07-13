@@ -16,7 +16,7 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 full-body humanoid environment (30-DOF control, 27-DOF AMP body)."""
+"""Robot3 humanoid environment (12-DOF lower-body policy control)."""
 
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
@@ -117,26 +117,6 @@ class Robot3Env(VecEnv):
 
         self.max_episode_length_s = self.cfg.scene.max_episode_length_s
         self.max_episode_length = np.ceil(self.max_episode_length_s / self.step_dt)
-        self.num_actions = self.robot.data.default_joint_pos.shape[1]
-        self.clip_actions = self.cfg.normalization.clip_actions
-        self.clip_obs = self.cfg.normalization.clip_observations
-
-        self.action_scale = self.cfg.robot.action_scale
-        self.action_buffer = DelayBuffer(
-            self.cfg.domain_rand.action_delay.params["max_delay"], self.num_envs, device=self.device
-        )
-        self.action_buffer.compute(
-            torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
-        )
-        if self.cfg.domain_rand.action_delay.enable:
-            time_lags = torch.randint(
-                low=self.cfg.domain_rand.action_delay.params["min_delay"],
-                high=self.cfg.domain_rand.action_delay.params["max_delay"] + 1,
-                size=(self.num_envs,),
-                dtype=torch.int,
-                device=self.device,
-            )
-            self.action_buffer.set_time_lag(time_lags, torch.arange(self.num_envs, device=self.device))
 
         self.robot_cfg = SceneEntityCfg(name="robot")
         self.robot_cfg.resolve(self.scene)
@@ -211,6 +191,41 @@ class Robot3Env(VecEnv):
             preserve_order=True,
         )
 
+        # Policy controls legs only (12 DOF). Waist/arms/head stay at default pose.
+        self.action_joint_ids = list(self.left_leg_ids) + list(self.right_leg_ids)
+        self.fixed_joint_ids = (
+            list(self.waist_ids)
+            + list(self.left_arm_ids)
+            + list(self.right_arm_ids)
+            + list(self.head_ids)
+        )
+        self.num_actions = len(self.action_joint_ids)
+        self.action_joint_ids_t = torch.tensor(self.action_joint_ids, device=self.device, dtype=torch.long)
+        self.fixed_joint_ids_t = torch.tensor(self.fixed_joint_ids, device=self.device, dtype=torch.long)
+        # Indices within the 12-dim action vector: left leg [0:6], right leg [6:12]
+        self.action_ankle_indices = torch.tensor([4, 5, 10, 11], device=self.device, dtype=torch.long)
+        self.action_hip_roll_indices = torch.tensor([1, 7], device=self.device, dtype=torch.long)
+        self.action_hip_yaw_indices = torch.tensor([2, 8], device=self.device, dtype=torch.long)
+
+        self.action_scale = self.cfg.robot.action_scale
+        self.action_buffer = DelayBuffer(
+            self.cfg.domain_rand.action_delay.params["max_delay"], self.num_envs, device=self.device
+        )
+        self.action_buffer.compute(
+            torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        )
+        if self.cfg.domain_rand.action_delay.enable:
+            time_lags = torch.randint(
+                low=self.cfg.domain_rand.action_delay.params["min_delay"],
+                high=self.cfg.domain_rand.action_delay.params["max_delay"] + 1,
+                size=(self.num_envs,),
+                dtype=torch.int,
+                device=self.device,
+            )
+            self.action_buffer.set_time_lag(time_lags, torch.arange(self.num_envs, device=self.device))
+
+        self.clip_actions = self.cfg.normalization.clip_actions
+        self.clip_obs = self.cfg.normalization.clip_observations
         self.obs_scales = self.cfg.normalization.obs_scales
         self.add_noise = self.cfg.noise.add_noise
 
@@ -314,15 +329,15 @@ class Robot3Env(VecEnv):
         dof_pos[:, self.waist_ids] = waist_pos
         dof_pos[:, self.right_leg_ids] = right_leg_pos
         dof_pos[:, self.left_leg_ids] = left_leg_pos
-        # Head joints are not in AMP motion data; keep default pose during visualization.
-        dof_pos[:, self.head_ids] = self.robot.data.default_joint_pos[:, self.head_ids]
+        # Upper body and waist are not in policy action space; keep default pose.
+        dof_pos[:, self.fixed_joint_ids_t] = self.robot.data.default_joint_pos[:, self.fixed_joint_ids_t]
 
         dof_vel[:, self.right_arm_ids] = right_arm_vel
         dof_vel[:, self.left_arm_ids] = left_arm_vel
         dof_vel[:, self.waist_ids] = waist_vel
         dof_vel[:, self.right_leg_ids] = right_leg_vel
         dof_vel[:, self.left_leg_ids] = left_leg_vel
-        dof_vel[:, self.head_ids] = 0.0
+        dof_vel[:, self.fixed_joint_ids_t] = 0.0
 
         self.robot.write_joint_position_to_sim(dof_pos)
         self.robot.write_joint_velocity_to_sim(dof_vel)
@@ -378,39 +393,33 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation (full body joints only, no head/end-effectors)."""
-        self.right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
-        self.left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
-        self.waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
+        """Build AMP observation from leg joints only (12 pos + 12 vel)."""
         self.right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids]
         self.left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids]
-        self.right_arm_dof_vel = self.robot.data.joint_vel[:, self.right_arm_ids]
-        self.left_arm_dof_vel = self.robot.data.joint_vel[:, self.left_arm_ids]
-        self.waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
         self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
         self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
-        # left_hand_pos, right_hand_pos = self._compute_hand_positions()
-        # left_foot_pos, right_foot_pos = self._compute_foot_positions()
 
         return torch.cat(
             (
-                self.right_arm_dof_pos,
-                self.left_arm_dof_pos,
-                self.waist_dof_pos,
                 self.right_leg_dof_pos,
                 self.left_leg_dof_pos,
-                self.right_arm_dof_vel,
-                self.left_arm_dof_vel,
-                self.waist_dof_vel,
                 self.right_leg_dof_vel,
                 self.left_leg_dof_vel,
-                # left_hand_pos,
-                # right_hand_pos,
-                # left_foot_pos,
-                # right_foot_pos,
             ),
             dim=-1,
         )
+
+    def _pin_fixed_joints(self, env_ids: torch.Tensor):
+        """Keep waist/upper-body/head at default pose after reset randomization."""
+        if len(env_ids) == 0:
+            return
+
+        joint_pos = self.robot.data.joint_pos[env_ids].clone()
+        joint_vel = self.robot.data.joint_vel[env_ids].clone()
+        joint_pos[:, self.fixed_joint_ids_t] = self.robot.data.default_joint_pos[env_ids][:, self.fixed_joint_ids_t]
+        joint_vel[:, self.fixed_joint_ids_t] = 0.0
+        self.robot.write_joint_position_to_sim(joint_pos, env_ids)
+        self.robot.write_joint_velocity_to_sim(joint_vel, env_ids)
 
     def compute_current_observations(self):
         robot = self.robot
@@ -419,8 +428,8 @@ class Robot3Env(VecEnv):
         ang_vel = robot.data.root_ang_vel_b
         projected_gravity = robot.data.projected_gravity_b
         command = self.command_generator.command
-        joint_pos = robot.data.joint_pos - robot.data.default_joint_pos
-        joint_vel = robot.data.joint_vel - robot.data.default_joint_vel
+        joint_pos = (robot.data.joint_pos - robot.data.default_joint_pos)[:, self.action_joint_ids_t]
+        joint_vel = (robot.data.joint_vel - robot.data.default_joint_vel)[:, self.action_joint_ids_t]
         action = self.action_buffer._circular_buffer.buffer[:, -1, :]
         root_lin_vel = robot.data.root_lin_vel_b
         feet_contact = torch.max(torch.norm(net_contact_forces[:, :, self.feet_cfg.body_ids], dim=-1), dim=1)[0] > 0.5
@@ -430,9 +439,9 @@ class Robot3Env(VecEnv):
                 ang_vel * self.obs_scales.ang_vel,  # 3
                 projected_gravity * self.obs_scales.projected_gravity,  # 3
                 command * self.obs_scales.commands,  # 3
-                joint_pos * self.obs_scales.joint_pos,  # num_actions (30 for Robot3 full body)
-                joint_vel * self.obs_scales.joint_vel,  # num_actions
-                action * self.obs_scales.actions,  # num_actions
+                joint_pos * self.obs_scales.joint_pos,  # 12
+                joint_vel * self.obs_scales.joint_vel,  # 12
+                action * self.obs_scales.actions,  # 12
             ],
             dim=-1,
         )
@@ -514,6 +523,7 @@ class Robot3Env(VecEnv):
 
         self.scene.write_data_to_sim()
         self.sim.forward()
+        self._pin_fixed_joints(env_ids)
 
     def step(self, actions: torch.Tensor):
         delayed_actions = self.action_buffer.compute(actions)
@@ -523,7 +533,10 @@ class Robot3Env(VecEnv):
         if self.cfg.domain_rand.action_noise.enable:
             self.action += self.cfg.domain_rand.action_noise.noise_scale * torch.randn_like(self.action) * self.action
 
-        processed_actions = self.action * self.action_scale + self.robot.data.default_joint_pos
+        processed_actions = self.robot.data.default_joint_pos.clone()
+        processed_actions[:, self.action_joint_ids_t] = (
+            self.action * self.action_scale + self.robot.data.default_joint_pos[:, self.action_joint_ids_t]
+        )
 
         self.avg_feet_force_per_step = torch.zeros(
             self.num_envs, len(self.feet_cfg.body_ids), dtype=torch.float, device=self.device, requires_grad=False
@@ -629,7 +642,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs from policy (full body joint positions + joint velocities, no head/end-effectors)."""
+        """Gets AMP obs from policy (12 leg joint positions + 12 leg joint velocities)."""
         return self._build_amp_obs_from_state()
 
 

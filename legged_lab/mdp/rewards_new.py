@@ -367,6 +367,9 @@ def ankle_action(env: Robot1_6Env) -> torch.Tensor:
     
     通用性：✅ 适用于所有机器人（通过 ankle_joint_ids 查找，不依赖固定索引）
     """
+    action_indices = getattr(env, "action_ankle_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, env.ankle_joint_ids]), dim=1)
 
 
@@ -379,6 +382,9 @@ def hip_roll_action(env: Robot1_6Env) -> torch.Tensor:
     通用性：✅ 适用于 Robot1_6（使用 left_leg_ids[1] 和 right_leg_ids[1]，GMR 顺序）
     注意：Robot1_6 关节顺序为 hip_pitch[0], hip_roll[1], hip_yaw[2], knee[3], ankle_pitch[4], ankle_roll[5]
     """
+    action_indices = getattr(env, "action_hip_roll_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, [env.left_leg_ids[1], env.right_leg_ids[1]]]), dim=1)
 
 
@@ -391,6 +397,9 @@ def hip_yaw_action(env: Robot1_6Env) -> torch.Tensor:
     通用性：✅ 适用于 Robot1_6（使用 left_leg_ids[2] 和 right_leg_ids[2]，GMR 顺序）
     注意：Robot1_6 关节顺序为 hip_pitch[0], hip_roll[1], hip_yaw[2], knee[3], ankle_pitch[4], ankle_roll[5]
     """
+    action_indices = getattr(env, "action_hip_yaw_indices", None)
+    if action_indices is not None:
+        return torch.sum(torch.abs(env.action[:, action_indices]), dim=1)
     return torch.sum(torch.abs(env.action[:, [env.left_leg_ids[2], env.right_leg_ids[2]]]), dim=1)
 
 

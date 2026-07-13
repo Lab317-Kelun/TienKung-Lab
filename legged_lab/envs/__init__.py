@@ -85,5 +85,5 @@ task_registry.register(
 # Robot1_6 velocity task (AMP + RL, only feet_gait reward)
 # task_registry.register("robot1_6_velocity", Robot1_6Env, Robot1_6VelocityEnvCfg(), Robot1_6VelocityAgentCfg())
 
-# Robot3 tasks (30 DOF)
+# Robot3 tasks (12-DOF lower body policy control)
 task_registry.register("robot3_walk_amp", Robot3Env, Robot3WalkAmpFlatEnvCfg(), Robot3WalkAmpAgentCfg())

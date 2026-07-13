@@ -24,12 +24,11 @@ import torch
 
 
 class AMPLoader:
-    # Robot3 AMP obs (full body without head):
-    # joint_pos: right_arm(7) + left_arm(7) + waist(1) + right_leg(6) + left_leg(6) = 27
-    # joint_vel: 27
-    # end_effector_pos: left_hand(3) + right_hand(3) + left_foot(3) + right_foot(3) = 12 (not used)
-    JOINT_POS_SIZE = 27
-    JOINT_VEL_SIZE = 27
+    # Robot3 AMP obs (legs only):
+    # joint_pos: right_leg(6) + left_leg(6) = 12
+    # joint_vel: right_leg(6) + left_leg(6) = 12
+    JOINT_POS_SIZE = 12
+    JOINT_VEL_SIZE = 12
     END_EFFECTOR_POS_SIZE = 12
 
     JOINT_POSE_START_IDX = 0
@@ -40,6 +39,20 @@ class AMPLoader:
 
     END_POS_START_IDX = JOINT_VEL_END_IDX
     END_POS_END_IDX = END_POS_START_IDX + END_EFFECTOR_POS_SIZE
+
+    @staticmethod
+    def extract_amp_obs(motion_data: np.ndarray) -> np.ndarray:
+        """Extract leg-only AMP observations from Robot3 motion frames."""
+        if motion_data.shape[1] == AMPLoader.JOINT_VEL_END_IDX:
+            return motion_data
+        if motion_data.shape[1] >= 54:
+            # [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6), ...]
+            right_leg_pos = motion_data[:, 15:21]
+            left_leg_pos = motion_data[:, 21:27]
+            right_leg_vel = motion_data[:, 41:47]
+            left_leg_vel = motion_data[:, 47:53]
+            return np.concatenate([right_leg_pos, left_leg_pos, right_leg_vel, left_leg_vel], axis=1)
+        return motion_data[:, : AMPLoader.JOINT_VEL_END_IDX]
 
     def __init__(
         self,
@@ -73,12 +86,8 @@ class AMPLoader:
                 motion_json = json.load(f)
                 motion_data = np.array(motion_json["Frames"])
                 
-                # Robot3 motion 文件格式 (66维):
-                # [right_arm_pos(7), left_arm_pos(7), waist_pos(1), right_leg_pos(6), left_leg_pos(6),
-                #  right_arm_vel(7), left_arm_vel(7), waist_vel(1), right_leg_vel(6), left_leg_vel(6),
-                #  left_hand_pos(3), right_hand_pos(3), left_foot_pos(3), right_foot_pos(3)]
-                # AMP ref input only keeps joint positions + joint velocities.
-                amp_obs = motion_data[:, : AMPLoader.JOINT_VEL_END_IDX]
+                # Robot3 motion file may store full-body joints (>=54 dims). Policy uses legs only.
+                amp_obs = self.extract_amp_obs(motion_data)
                 
                 self.trajectories.append(
                     torch.tensor(amp_obs, dtype=torch.float32, device=device)
