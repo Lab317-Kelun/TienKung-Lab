@@ -3,6 +3,132 @@ import numpy as np
 import argparse
 from scipy.spatial.transform import Rotation
 
+
+def _resolve_joint_reorder_indices(motion_data: dict) -> list[int]:
+    """Resolve Robot3 target joint order indices from metadata."""
+    dof_names = motion_data.get("dof_names", None)
+    if dof_names is None:
+        dof_names = motion_data.get("joint_names", None)
+    target_order = [
+        # right arm (7)
+        "right_shoulder_pitch_joint",
+        "right_shoulder_roll_joint",
+        "right_shoulder_yaw_joint",
+        "right_elbow_joint",
+        "right_wrist_roll_joint",
+        "right_wrist_pitch_joint",
+        "right_wrist_yaw_joint",
+        # left arm (7)
+        "left_shoulder_pitch_joint",
+        "left_shoulder_roll_joint",
+        "left_shoulder_yaw_joint",
+        "left_elbow_joint",
+        "left_wrist_roll_joint",
+        "left_wrist_pitch_joint",
+        "left_wrist_yaw_joint",
+        # waist (1)
+        "waist_yaw_joint",
+        # right leg (6)
+        "right_hip_pitch_joint",
+        "right_hip_roll_joint",
+        "right_hip_yaw_joint",
+        "right_knee_joint",
+        "right_ankle_pitch_joint",
+        "right_ankle_roll_joint",
+        # left leg (6)
+        "left_hip_pitch_joint",
+        "left_hip_roll_joint",
+        "left_hip_yaw_joint",
+        "left_knee_joint",
+        "left_ankle_pitch_joint",
+        "left_ankle_roll_joint",
+    ]
+
+    # Fallback for datasets without joint-name metadata.
+    if dof_names is None:
+        dof_dim = motion_data["dof_pos"].shape[1]
+        # Common Robot3 export order from controller_joint_names:
+        # left_leg(6), right_leg(6), waist(1), left_arm(7), right_arm(7), head(3)
+        if dof_dim == 30:
+            source_order = [
+                "left_hip_pitch_joint",
+                "left_hip_roll_joint",
+                "left_hip_yaw_joint",
+                "left_knee_joint",
+                "left_ankle_pitch_joint",
+                "left_ankle_roll_joint",
+                "right_hip_pitch_joint",
+                "right_hip_roll_joint",
+                "right_hip_yaw_joint",
+                "right_knee_joint",
+                "right_ankle_pitch_joint",
+                "right_ankle_roll_joint",
+                "waist_yaw_joint",
+                "left_shoulder_pitch_joint",
+                "left_shoulder_roll_joint",
+                "left_shoulder_yaw_joint",
+                "left_elbow_joint",
+                "left_wrist_roll_joint",
+                "left_wrist_pitch_joint",
+                "left_wrist_yaw_joint",
+                "right_shoulder_pitch_joint",
+                "right_shoulder_roll_joint",
+                "right_shoulder_yaw_joint",
+                "right_elbow_joint",
+                "right_wrist_roll_joint",
+                "right_wrist_pitch_joint",
+                "right_wrist_yaw_joint",
+                "head_yaw_joint",
+                "head_roll_joint",
+                "head_pitch_joint",
+            ]
+        elif dof_dim == 27:
+            # Same as above but without head joints.
+            source_order = [
+                "left_hip_pitch_joint",
+                "left_hip_roll_joint",
+                "left_hip_yaw_joint",
+                "left_knee_joint",
+                "left_ankle_pitch_joint",
+                "left_ankle_roll_joint",
+                "right_hip_pitch_joint",
+                "right_hip_roll_joint",
+                "right_hip_yaw_joint",
+                "right_knee_joint",
+                "right_ankle_pitch_joint",
+                "right_ankle_roll_joint",
+                "waist_yaw_joint",
+                "left_shoulder_pitch_joint",
+                "left_shoulder_roll_joint",
+                "left_shoulder_yaw_joint",
+                "left_elbow_joint",
+                "left_wrist_roll_joint",
+                "left_wrist_pitch_joint",
+                "left_wrist_yaw_joint",
+                "right_shoulder_pitch_joint",
+                "right_shoulder_roll_joint",
+                "right_shoulder_yaw_joint",
+                "right_elbow_joint",
+                "right_wrist_roll_joint",
+                "right_wrist_pitch_joint",
+                "right_wrist_yaw_joint",
+            ]
+        else:
+            raise ValueError(
+                f"PKL missing dof_names/joint_names and unsupported dof_pos dim={dof_dim}. "
+                "Expected 27 or 30 for Robot3 full-body export."
+            )
+
+        name_to_idx = {name: i for i, name in enumerate(source_order)}
+        return [name_to_idx[name] for name in target_order]
+
+    name_to_idx = {name: i for i, name in enumerate(dof_names)}
+    missing = [name for name in target_order if name not in name_to_idx]
+    if missing:
+        raise ValueError(f"Missing joints in PKL metadata: {missing}")
+    return [name_to_idx[name] for name in target_order]
+
+
 def convert_pkl_to_custom(input_pkl, output_txt, fps):
     dt = 1.0 / fps
 
@@ -104,7 +230,9 @@ def convert_pkl_to_custom(input_pkl, output_txt, fps):
 
     root_pos = motion_data["root_pos"]
     root_rot = motion_data["root_rot"][:, [3, 0, 1, 2]]  # xyzw → wxyz
-    dof_pos = motion_data["dof_pos"]
+    dof_pos_raw = motion_data["dof_pos"]
+    reorder_idx = _resolve_joint_reorder_indices(motion_data)
+    dof_pos = dof_pos_raw[:, reorder_idx]
 
     root_lin_vel = (root_pos[1:] - root_pos[:-1]) / dt
 
@@ -120,9 +248,15 @@ def convert_pkl_to_custom(input_pkl, output_txt, fps):
     euler_angles = np.unwrap(euler_angles, axis=0)
 
     data_output = np.concatenate(
-        (root_pos[:-1], euler_angles, dof_pos[:-1],  
-         root_lin_vel, root_ang_vel, dof_vel),
-        axis=1
+        (
+            root_pos[:-1],       # 3
+            euler_angles,        # 3
+            dof_pos[:-1],        # 27 (right_arm, left_arm, waist, right_leg, left_leg)
+            root_lin_vel,        # 3
+            root_ang_vel,        # 3
+            dof_vel,             # 27
+        ),
+        axis=1,
     )
 
     np.savetxt(output_txt, data_output, fmt='%f', delimiter=', ')

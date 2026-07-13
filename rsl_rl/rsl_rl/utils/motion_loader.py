@@ -27,7 +27,7 @@ class AMPLoader:
     # Robot3 AMP obs (full body without head):
     # joint_pos: right_arm(7) + left_arm(7) + waist(1) + right_leg(6) + left_leg(6) = 27
     # joint_vel: 27
-    # end_effector_pos: left_hand(3) + right_hand(3) + left_foot(3) + right_foot(3) = 12
+    # end_effector_pos: left_hand(3) + right_hand(3) + left_foot(3) + right_foot(3) = 12 (not used)
     JOINT_POS_SIZE = 27
     JOINT_VEL_SIZE = 27
     END_EFFECTOR_POS_SIZE = 12
@@ -77,7 +77,8 @@ class AMPLoader:
                 # [right_arm_pos(7), left_arm_pos(7), waist_pos(1), right_leg_pos(6), left_leg_pos(6),
                 #  right_arm_vel(7), left_arm_vel(7), waist_vel(1), right_leg_vel(6), left_leg_vel(6),
                 #  left_hand_pos(3), right_hand_pos(3), left_foot_pos(3), right_foot_pos(3)]
-                amp_obs = motion_data
+                # AMP ref input only keeps joint positions + joint velocities.
+                amp_obs = motion_data[:, : AMPLoader.JOINT_VEL_END_IDX]
                 
                 self.trajectories.append(
                     torch.tensor(amp_obs, dtype=torch.float32, device=device)
@@ -188,15 +189,15 @@ class AMPLoader:
         idx_high = np.clip(idx_high, 0, None)
         
         all_frame_amp_starts = torch.zeros(
-            len(traj_idxs), AMPLoader.END_POS_END_IDX - AMPLoader.JOINT_POSE_START_IDX, device=self.device
+            len(traj_idxs), AMPLoader.JOINT_VEL_END_IDX - AMPLoader.JOINT_POSE_START_IDX, device=self.device
         )
         all_frame_amp_ends = torch.zeros(
-            len(traj_idxs), AMPLoader.END_POS_END_IDX - AMPLoader.JOINT_POSE_START_IDX, device=self.device
+            len(traj_idxs), AMPLoader.JOINT_VEL_END_IDX - AMPLoader.JOINT_POSE_START_IDX, device=self.device
         )
         for traj_idx in set(traj_idxs):
             trajectory = self.trajectories_full[traj_idx]
             traj_mask = traj_idxs == traj_idx
-            # trajectory已经是30维的完整数据，直接使用，不需要切片
+            # trajectory 已是 54 维 AMP 数据（27 joint_pos + 27 joint_vel），直接使用
             idx_low_traj = np.clip(idx_low[traj_mask], 0, trajectory.shape[0] - 1)
             idx_high_traj = np.clip(idx_high[traj_mask], 0, trajectory.shape[0] - 1)
             all_frame_amp_starts[traj_mask] = trajectory[idx_low_traj]
@@ -242,20 +243,19 @@ class AMPLoader:
         joints0, joints1 = AMPLoader.get_joint_pose(frame0), AMPLoader.get_joint_pose(frame1)
         joint_vel_0, joint_vel_1 = AMPLoader.get_joint_vel(frame0), AMPLoader.get_joint_vel(frame1)
 
-        end_pos_0, end_pos_1 = AMPLoader.get_end_pos(frame0), AMPLoader.get_end_pos(frame1)
         blend_joint_q = self.slerp(joints0, joints1, blend)
         blend_joints_vel = self.slerp(joint_vel_0, joint_vel_1, blend)
-        blend_end_pos = self.slerp(end_pos_0, end_pos_1, blend)
 
-        return torch.cat([blend_joint_q, blend_joints_vel, blend_end_pos])
+        # End-effector positions are intentionally excluded from AMP input.
+        return torch.cat([blend_joint_q, blend_joints_vel])
 
     def feed_forward_generator(self, num_mini_batch, mini_batch_size):
         """Generates a batch of AMP transitions."""
         for _ in range(num_mini_batch):
             if self.preload_transitions:
                 idxs = np.random.choice(self.preloaded_s.shape[0], size=mini_batch_size)
-                s = self.preloaded_s[idxs, AMPLoader.JOINT_POSE_START_IDX : AMPLoader.END_POS_END_IDX]
-                s_next = self.preloaded_s_next[idxs, AMPLoader.JOINT_POSE_START_IDX : AMPLoader.END_POS_END_IDX]
+                s = self.preloaded_s[idxs, AMPLoader.JOINT_POSE_START_IDX : AMPLoader.JOINT_VEL_END_IDX]
+                s_next = self.preloaded_s_next[idxs, AMPLoader.JOINT_POSE_START_IDX : AMPLoader.JOINT_VEL_END_IDX]
             else:
                 s, s_next = [], []
                 traj_idxs = self.weighted_traj_idx_sample_batch(mini_batch_size)

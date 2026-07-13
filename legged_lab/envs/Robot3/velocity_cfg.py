@@ -79,7 +79,8 @@ class Robot3VelocityRewardCfg:
     #     params={"std": 0.5, "command_threshold": 0.1},  # ✨仅在运动时激活
     # )
     is_alive = RewTerm(func=mdp.is_alive, weight=0.15)
-
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
+    
     # === Base penalties ===
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
@@ -117,6 +118,32 @@ class Robot3VelocityRewardCfg:
             ),
         },
     )
+    
+    joint_deviation_heads = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*head_.*_joint"],
+            ),
+        },
+    )
+    joint_deviation_arms = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-0.2,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[
+                    ".*_shoulder_.*_joint",
+                    ".*_elbow_joint",
+                    ".*_wrist_.*_joint",
+                ],
+            ),
+        },
+    )
+        
     stand_still = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-1.0,
@@ -135,10 +162,14 @@ class Robot3VelocityRewardCfg:
 
     # === Posture ===
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+    body_orientation_l2 = RewTerm(
+        func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="pelvis")}, weight=-2.0
+    )
+        
     base_height_l2 = RewTerm(
         func=mdp.base_height_l2,
         weight=-10.0,
-        params={"target_height": 0.90},  # Robot3 standing height
+        params={"target_height": 1.05},  # Robot3 standing height
     )
 
     # === Gait and feet ===
@@ -183,7 +214,15 @@ class Robot3VelocityRewardCfg:
             "threshold": 1.0,
         },
     )
-
+    feet_force = RewTerm(
+        func=mdp.body_force,
+        weight=-3e-3,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
+            "threshold": 500,
+            "max_reward": 400,
+        },
+    )
     feet_distance_lateral = RewTerm(
         func=mdp.feet_distance_lateral,
         weight=5.0,  # 增加权重以更严格惩罚双脚并拢
@@ -202,7 +241,7 @@ class Robot3VelocityRewardCfg:
         weight=-2.0,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
     )
-    gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
-    gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})
-    gait_feet_frc_support_perio = RewTerm(func=mdp.gait_feet_frc_support_perio, weight=0.6, params={"delta_t": 0.02})
+    # gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
+    # gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})
+    # gait_feet_frc_support_perio = RewTerm(func=mdp.gait_feet_frc_support_perio, weight=0.6, params={"delta_t": 0.02})
 

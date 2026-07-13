@@ -175,7 +175,9 @@ def store_code_state(logdir, repositories) -> list:
             continue
         # write the diff file
         print(f"Storing git diff for '{repo_name}' in: {diff_file_name}")
-        with open(diff_file_name, "x", encoding="utf-8") as f:
+        # Some git outputs may contain invalid surrogate characters from filenames.
+        # Use backslash replacement so logging never crashes training.
+        with open(diff_file_name, "x", encoding="utf-8", errors="backslashreplace") as f:
             content = f"--- git status ---\n{repo.git.status()} \n\n\n--- git diff ---\n{repo.git.diff(t)}"
             f.write(content)
         # add the file path to the list of files to be uploaded

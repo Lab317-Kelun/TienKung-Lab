@@ -75,7 +75,7 @@ def play():
     env_cfg.domain_rand.action_noise.enable = False
     env_cfg.domain_rand.actuation_offset.enable = False
     env_cfg.scene.max_episode_length_s = 40.0
-    env_cfg.scene.num_envs = 50
+    env_cfg.scene.num_envs = 1
     env_cfg.scene.env_spacing = 2.5
     env_cfg.commands.rel_standing_envs = 0.0
     env_cfg.commands.ranges.lin_vel_x = (0.5, 1.0)

@@ -546,8 +546,9 @@ class AmpOnPolicyRunner:
         loaded_dict = torch.load(path, weights_only=False)
         # -- Load model
         resumed_training = self.alg.policy.load_state_dict(loaded_dict["model_state_dict"])
-        self.alg.discriminator.load_state_dict(loaded_dict["discriminator_state_dict"])
-        self.alg.amp_normalizer = loaded_dict["amp_normalizer"]
+        if load_optimizer:
+            self.alg.discriminator.load_state_dict(loaded_dict["discriminator_state_dict"])
+            self.alg.amp_normalizer = loaded_dict["amp_normalizer"]
         # -- Load RND model if used
         if self.alg.rnd:
             self.alg.rnd.load_state_dict(loaded_dict["rnd_state_dict"])

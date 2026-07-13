@@ -16,6 +16,8 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
+"""Robot3 full-body humanoid environment (30-DOF control, 27-DOF AMP body)."""
+
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
 import numpy as np
@@ -200,6 +202,10 @@ class Robot3Env(VecEnv):
             preserve_order=True,
         )
         self.waist_ids, _ = self.robot.find_joints(name_keys=["waist_yaw_joint"], preserve_order=True)
+        self.head_ids, _ = self.robot.find_joints(
+            name_keys=["head_yaw_joint", "head_roll_joint", "head_pitch_joint"],
+            preserve_order=True,
+        )
         self.ankle_joint_ids, _ = self.robot.find_joints(
             name_keys=["left_ankle_pitch_joint", "right_ankle_pitch_joint", "left_ankle_roll_joint", "right_ankle_roll_joint"],
             preserve_order=True,
@@ -231,8 +237,6 @@ class Robot3Env(VecEnv):
         self.action = torch.zeros(
             self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False
         )
-        # 初始化处理后的命令缓存
-        self.processed_command = torch.zeros(self.num_envs, 3, dtype=torch.float, device=self.device, requires_grad=False)
         self.avg_feet_force_per_step = torch.zeros(
             self.num_envs, len(self.feet_cfg.body_ids), dtype=torch.float, device=self.device, requires_grad=False
         )
@@ -310,12 +314,15 @@ class Robot3Env(VecEnv):
         dof_pos[:, self.waist_ids] = waist_pos
         dof_pos[:, self.right_leg_ids] = right_leg_pos
         dof_pos[:, self.left_leg_ids] = left_leg_pos
+        # Head joints are not in AMP motion data; keep default pose during visualization.
+        dof_pos[:, self.head_ids] = self.robot.data.default_joint_pos[:, self.head_ids]
 
         dof_vel[:, self.right_arm_ids] = right_arm_vel
         dof_vel[:, self.left_arm_ids] = left_arm_vel
         dof_vel[:, self.waist_ids] = waist_vel
         dof_vel[:, self.right_leg_ids] = right_leg_vel
         dof_vel[:, self.left_leg_ids] = left_leg_vel
+        dof_vel[:, self.head_ids] = 0.0
 
         self.robot.write_joint_position_to_sim(dof_pos)
         self.robot.write_joint_velocity_to_sim(dof_vel)
@@ -371,7 +378,7 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation aligned with TienKung format (full body, no head)."""
+        """Build AMP observation (full body joints only, no head/end-effectors)."""
         self.right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
         self.left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
         self.waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
@@ -382,8 +389,8 @@ class Robot3Env(VecEnv):
         self.waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
         self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
         self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
-        left_hand_pos, right_hand_pos = self._compute_hand_positions()
-        left_foot_pos, right_foot_pos = self._compute_foot_positions()
+        # left_hand_pos, right_hand_pos = self._compute_hand_positions()
+        # left_foot_pos, right_foot_pos = self._compute_foot_positions()
 
         return torch.cat(
             (
@@ -397,23 +404,13 @@ class Robot3Env(VecEnv):
                 self.waist_dof_vel,
                 self.right_leg_dof_vel,
                 self.left_leg_dof_vel,
-                left_hand_pos,
-                right_hand_pos,
-                left_foot_pos,
-                right_foot_pos,
+                # left_hand_pos,
+                # right_hand_pos,
+                # left_foot_pos,
+                # right_foot_pos,
             ),
             dim=-1,
         )
-
-    def _process_command(self):
-        """处理命令，将小于阈值的速度命令设置为0"""
-        command = self.command_generator.command.clone()  # 克隆命令以避免修改原始值
-        # 将小于阈值的速度命令设置为0（分别对x、y、yaw三个方向处理）
-        threshold = self.cfg.commands.velocity_threshold
-        command[:, 0] = torch.where(torch.abs(command[:, 0]) < threshold, torch.zeros_like(command[:, 0]), command[:, 0])
-        command[:, 1] = torch.where(torch.abs(command[:, 1]) < threshold, torch.zeros_like(command[:, 1]), command[:, 1])
-        command[:, 2] = torch.where(torch.abs(command[:, 2]) < threshold, torch.zeros_like(command[:, 2]), command[:, 2])
-        return command
 
     def compute_current_observations(self):
         robot = self.robot
@@ -421,7 +418,7 @@ class Robot3Env(VecEnv):
 
         ang_vel = robot.data.root_ang_vel_b
         projected_gravity = robot.data.projected_gravity_b
-        command = self.processed_command  # 使用处理后的命令
+        command = self.command_generator.command
         joint_pos = robot.data.joint_pos - robot.data.default_joint_pos
         joint_vel = robot.data.joint_vel - robot.data.default_joint_vel
         action = self.action_buffer._circular_buffer.buffer[:, -1, :]
@@ -433,12 +430,9 @@ class Robot3Env(VecEnv):
                 ang_vel * self.obs_scales.ang_vel,  # 3
                 projected_gravity * self.obs_scales.projected_gravity,  # 3
                 command * self.obs_scales.commands,  # 3
-                joint_pos * self.obs_scales.joint_pos,  # 12 (robot1_6 has 12 joints)
-                joint_vel * self.obs_scales.joint_vel,  # 12 (robot1_6 has 12 joints)
-                action * self.obs_scales.actions,  # 12 (robot1_6 has 12 joints)
-                torch.sin(2 * torch.pi * self.gait_phase),  # 2
-                torch.cos(2 * torch.pi * self.gait_phase),  # 2
-                self.phase_ratio,  # 2
+                joint_pos * self.obs_scales.joint_pos,  # num_actions (30 for Robot3 full body)
+                joint_vel * self.obs_scales.joint_vel,  # num_actions
+                action * self.obs_scales.actions,  # num_actions
             ],
             dim=-1,
         )
@@ -559,11 +553,7 @@ class Robot3Env(VecEnv):
         self._calculate_gait_para()
 
         self.command_generator.compute(self.step_dt)
-        # 处理命令并保存，供观测和奖励使用
-        # self.processed_command = self._process_command()
-        # # 覆盖 command_generator.command 为处理后的值，使奖励函数也能使用处理后的命令
-        # self.command_generator.vel_command_b[:] = self.processed_command
-        
+
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
@@ -580,13 +570,13 @@ class Robot3Env(VecEnv):
     def check_reset(self):
         net_contact_forces = self.contact_sensor.data.net_forces_w_history
         reset_buf = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self.termination_contact_cfg.body_ids], dim=-1), dim=1)[0] > 1.0, dim=1)
-        projected_gravity = self.robot.data.projected_gravity_b
-        gravity_termination_buf = torch.any(torch.norm(projected_gravity[:, 0:2], dim=-1, keepdim=True) > 0.7, dim=1)
-        base_height = self.robot.data.root_pos_w[:, 2]
-        height_cutoff = base_height > 1.5
+        # projected_gravity = self.robot.data.projected_gravity_b
+        # gravity_termination_buf = torch.any(torch.norm(projected_gravity[:, 0:2], dim=-1, keepdim=True) > 0.7, dim=1)
+        # base_height = self.robot.data.root_pos_w[:, 2]
+        # height_cutoff = base_height > 1.5
         time_out_buf = self.episode_length_buf >= self.max_episode_length
-        reset_buf |= gravity_termination_buf
-        reset_buf |= height_cutoff
+        # reset_buf |= gravity_termination_buf
+        # reset_buf |= height_cutoff
         reset_buf |= time_out_buf
         return reset_buf, time_out_buf
 
@@ -595,15 +585,13 @@ class Robot3Env(VecEnv):
             actor_obs, _ = self.compute_current_observations()
             noise_vec = torch.zeros_like(actor_obs[0])
             noise_scales = self.cfg.noise.noise_scales
-            # Actor 观察顺序: [ang_vel(3), projected_gravity(3), command(3), joint_pos(12), joint_vel(12), action(12), sin/cos gait_phase(4), phase_ratio(2)]
+            # Actor obs: [ang_vel(3), gravity(3), command(3), joint_pos(N), joint_vel(N), action(N)]
             noise_vec[:3] = noise_scales.ang_vel * self.obs_scales.ang_vel  # ang_vel (角速度)
             noise_vec[3:6] = noise_scales.projected_gravity * self.obs_scales.projected_gravity  # projected_gravity
             noise_vec[6:9] = 0.0  # command (命令不需要噪声)
             noise_vec[9 : 9 + self.num_actions] = noise_scales.joint_pos * self.obs_scales.joint_pos  # joint_pos
             noise_vec[9 + self.num_actions : 9 + self.num_actions * 2] = noise_scales.joint_vel * self.obs_scales.joint_vel  # joint_vel
             noise_vec[9 + self.num_actions * 2 : 9 + self.num_actions * 3] = 0.0  # action (动作不需要噪声)
-            # noise_vec[9 + self.num_actions * 3 : 9 + self.num_actions * 3 + 4] = 0.0  # sin/cos gait_phase (步态相位不需要噪声)
-            # noise_vec[9 + self.num_actions * 3 + 4 : 9 + self.num_actions * 3 + 6] = 0.0  # phase_ratio (相位比例不需要噪声)
             self.noise_scale_vec = noise_vec
 
             if self.cfg.scene.height_scanner.enable_height_scan:
@@ -641,7 +629,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs from policy (full body joints + hand/foot positions, no head)."""
+        """Gets AMP obs from policy (full body joint positions + joint velocities, no head/end-effectors)."""
         return self._build_amp_obs_from_state()
 
 

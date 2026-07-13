@@ -277,7 +277,13 @@ class Robot3WalkFlatEnvCfg:
         actor_obs_history_length=10,
         critic_obs_history_length=10,
         action_scale=0.25,
-        terminate_contacts_body_names=[".*_knee_link", "pelvis"],
+        terminate_contacts_body_names=[
+            "pelvis",
+            ".*_knee_link",
+            "waist_yaw_link",
+            ".*_shoulder_roll_link",
+            ".*_elbow_link",
+        ],
         feet_body_names=[".*_ankle_roll_link"],
     )
     reward = LiteRewardCfg()
@@ -426,7 +432,7 @@ class Robot3WalkAgentCfg(RslRlOnPolicyRunnerCfg):
         init_noise_std=1.0,
         noise_std_type="scalar",
         actor_hidden_dims=[512, 256, 128],
-        critic_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[1024, 512, 256, 128],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
@@ -475,7 +481,13 @@ class Robot3WalkAmpFlatEnvCfg(Robot3WalkFlatEnvCfg):
         actor_obs_history_length=10,
         critic_obs_history_length=10,
         action_scale=0.25,
-        terminate_contacts_body_names=[".*_knee_link", "pelvis"],
+        terminate_contacts_body_names=[
+            "pelvis",
+            ".*_knee_link",
+            "waist_yaw_link",
+            ".*_shoulder_roll_link",
+            ".*_elbow_link",
+        ],
         feet_body_names=[".*_ankle_roll_link"],
     )
     normalization: NormalizationCfg = NormalizationCfg(
