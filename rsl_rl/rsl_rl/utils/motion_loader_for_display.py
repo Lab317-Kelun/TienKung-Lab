@@ -24,9 +24,11 @@ import torch
 
 
 class AMPLoaderDisplay:
-    JOINT_POS_SIZE = 26
-
-    JOINT_VEL_SIZE = 26
+    # Robot3 visualization frame keeps full 66 dims:
+    # [root_pos(3), root_euler(3), joint_pos(27), root_lin_vel(3), root_ang_vel(3), joint_vel(27)]
+    # We split as 33 + 33 so blend_frame_pose returns all 66 dims.
+    JOINT_POS_SIZE = 33
+    JOINT_VEL_SIZE = 33
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
@@ -67,7 +69,6 @@ class AMPLoaderDisplay:
                 motion_json = json.load(f)
                 motion_data = np.array(motion_json["Frames"])
 
-                # Remove first 7 observation dimensions (root_pos and root_orn).
                 self.trajectories.append(
                     torch.tensor(
                         motion_data[:, : AMPLoaderDisplay.JOINT_VEL_END_IDX], dtype=torch.float32, device=device

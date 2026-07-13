@@ -24,13 +24,13 @@ import torch
 
 
 class AMPLoader:
-    # Robot1_6: 包含所有12个关节（左右腿各6个：hip_pitch, hip_roll, hip_yaw, knee, ankle_pitch, ankle_roll）
-    JOINT_POS_SIZE = 8
-
-    JOINT_VEL_SIZE = 8
-
-    # Robot1_6: 包含脚部末端执行器位置（左右脚各3个：x, y, z）
-    END_EFFECTOR_POS_SIZE = 0
+    # Robot3 AMP obs (full body without head):
+    # joint_pos: right_arm(7) + left_arm(7) + waist(1) + right_leg(6) + left_leg(6) = 27
+    # joint_vel: 27
+    # end_effector_pos: left_hand(3) + right_hand(3) + left_foot(3) + right_foot(3) = 12
+    JOINT_POS_SIZE = 27
+    JOINT_VEL_SIZE = 27
+    END_EFFECTOR_POS_SIZE = 12
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
@@ -73,9 +73,10 @@ class AMPLoader:
                 motion_json = json.load(f)
                 motion_data = np.array(motion_json["Frames"])
                 
-                # Robot1_6 motion文件格式: 
-                # [right_leg_dof_pos(6), left_leg_dof_pos(6), right_leg_dof_vel(6), left_leg_dof_vel(6), right_foot_pos(3), left_foot_pos(3)] = 30维
-                # 包含所有12个关节（hip, knee, ankle）和脚部位置
+                # Robot3 motion 文件格式 (66维):
+                # [right_arm_pos(7), left_arm_pos(7), waist_pos(1), right_leg_pos(6), left_leg_pos(6),
+                #  right_arm_vel(7), left_arm_vel(7), waist_vel(1), right_leg_vel(6), left_leg_vel(6),
+                #  left_hand_pos(3), right_hand_pos(3), left_foot_pos(3), right_foot_pos(3)]
                 amp_obs = motion_data
                 
                 self.trajectories.append(
@@ -241,10 +242,12 @@ class AMPLoader:
         joints0, joints1 = AMPLoader.get_joint_pose(frame0), AMPLoader.get_joint_pose(frame1)
         joint_vel_0, joint_vel_1 = AMPLoader.get_joint_vel(frame0), AMPLoader.get_joint_vel(frame1)
 
+        end_pos_0, end_pos_1 = AMPLoader.get_end_pos(frame0), AMPLoader.get_end_pos(frame1)
         blend_joint_q = self.slerp(joints0, joints1, blend)
         blend_joints_vel = self.slerp(joint_vel_0, joint_vel_1, blend)
+        blend_end_pos = self.slerp(end_pos_0, end_pos_1, blend)
 
-        return torch.cat([blend_joint_q, blend_joints_vel])
+        return torch.cat([blend_joint_q, blend_joints_vel, blend_end_pos])
 
     def feed_forward_generator(self, num_mini_batch, mini_batch_size):
         """Generates a batch of AMP transitions."""

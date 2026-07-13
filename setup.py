@@ -30,7 +30,7 @@ setup(
     version="0.1.0",
     install_requires=[
         "IsaacLab",
-        "torch>=2.6",
+        "torch>=2.7",
         "torchvision>=0.21.0",
         "pynput",
         "mujoco==3.3.2",
@@ -38,6 +38,6 @@ setup(
         "matplotlib",
     ],
     dependency_links=[
-        "https://download.pytorch.org/whl/cu124",
+        "https://download.pytorch.org/whl/cu128",
     ],
 )

@@ -9,17 +9,19 @@
         "**/node_modules"
     ],
     "extraPaths": [
-        "/home/cft/kelun/TienKung-Lab",
-        "/home/cft/kelun/TienKung-Lab/legged_lab",
-        "/home/cft/kelun/TienKung-Lab/rsl_rl",
-        "/home/cft/kelun/TienKung-Lab/rsl_rl/rsl_rl",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab/isaaclab",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab_tasks",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab_mimic",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab_assets",
-        "/home/cft/kelun/TienKung-Lab/IsaacLab/source/isaaclab_rl"
+        ".",
+        "legged_lab",
+        "rsl_rl",
+        "rsl_rl/rsl_rl",
+        "IsaacLab/source",
+        "IsaacLab/source/isaaclab",
+        "IsaacLab/source/isaaclab/isaaclab",
+        "IsaacLab/source/isaaclab_tasks",
+        "IsaacLab/source/isaaclab_mimic",
+        "IsaacLab/source/isaaclab_contrib",
+        "IsaacLab/source/extensions",
+        "IsaacLab/source/isaaclab_assets",
+        "IsaacLab/source/isaaclab_rl"
     ],
     "pythonVersion": "3.10",
     "pythonPlatform": "Linux",
@@ -47,4 +49,3 @@
     "reportUnknownParameterType": "none",
     "reportUnknownReturnType": "none"
 }
-

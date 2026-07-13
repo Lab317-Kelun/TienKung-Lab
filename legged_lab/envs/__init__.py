@@ -48,6 +48,15 @@ from legged_lab.envs.robot1_6.walk_with_sensor_cfg import (
     Robot1_6WalkWithSensorAgentCfg,
     Robot1_6WalkWithSensorFlatEnvCfg,
 )
+
+from legged_lab.envs.Robot3.robot3_env import Robot3Env
+from legged_lab.envs.Robot3.walk_cfg import (
+    Robot3WalkAgentCfg,
+    Robot3WalkAmpAgentCfg,
+    Robot3WalkAmpFlatEnvCfg,
+    Robot3WalkFlatEnvCfg,
+)
+
 # from legged_lab.envs.robot1_6.velocity_cfg import (
 #     Robot1_6VelocityAgentCfg,
 #     Robot1_6VelocityEnvCfg,
@@ -75,3 +84,6 @@ task_registry.register(
 )
 # Robot1_6 velocity task (AMP + RL, only feet_gait reward)
 # task_registry.register("robot1_6_velocity", Robot1_6Env, Robot1_6VelocityEnvCfg(), Robot1_6VelocityAgentCfg())
+
+# Robot3 tasks (30 DOF)
+task_registry.register("robot3_walk_amp", Robot3Env, Robot3WalkAmpFlatEnvCfg(), Robot3WalkAmpAgentCfg())
