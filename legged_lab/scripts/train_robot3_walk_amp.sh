@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 export WANDB_ENTITY=polar-bear
 
 python legged_lab/scripts/train.py \

@@ -368,7 +368,16 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        return self._build_amp_obs_from_state()
+        # AMP obs: hip+knee only (16 dims), same as robot1_6
+        return torch.cat(
+            (
+                dof_pos[:, self.right_leg_ids[:4]],
+                dof_pos[:, self.left_leg_ids[:4]],
+                dof_vel[:, self.right_leg_ids[:4]],
+                dof_vel[:, self.left_leg_ids[:4]],
+            ),
+            dim=-1,
+        )
 
     def _compute_hand_positions(self):
         left_hand_pos = (
@@ -393,11 +402,11 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation from leg joints only (12 pos + 12 vel)."""
-        self.right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids]
-        self.left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids]
-        self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
-        self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
+        """Build AMP observation from hip and knee only (4 pos + 4 vel per leg, 16 dims)."""
+        self.right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids[:4]]
+        self.left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids[:4]]
+        self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids[:4]]
+        self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids[:4]]
 
         return torch.cat(
             (
@@ -642,7 +651,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs from policy (12 leg joint positions + 12 leg joint velocities)."""
+        """Gets AMP obs from policy (hip+knee only: 8 pos + 8 vel = 16 dims)."""
         return self._build_amp_obs_from_state()
 
 

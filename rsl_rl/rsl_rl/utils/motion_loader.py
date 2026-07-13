@@ -24,35 +24,65 @@ import torch
 
 
 class AMPLoader:
-    # Robot3 lower-body AMP obs (24 dims):
-    # right_leg_pos(6) + left_leg_pos(6) + right_leg_vel(6) + left_leg_vel(6)
-    JOINT_POS_SIZE = 12
-    JOINT_VEL_SIZE = 12
+    # Robot3 lower-body AMP obs (16 dims, hip+knee only):
+    # right_leg_pos(4) + left_leg_pos(4) + right_leg_vel(4) + left_leg_vel(4)
+    # Per leg: hip_pitch, hip_roll, hip_yaw, knee (no ankle)
+    JOINT_POS_SIZE = 8
+    JOINT_VEL_SIZE = 8
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
     JOINT_VEL_START_IDX = JOINT_POSE_END_IDX
     JOINT_VEL_END_IDX = JOINT_VEL_START_IDX + JOINT_VEL_SIZE
 
+    _LEG_AMP_DOF = 4
+
     # Full-body joint block layout (gmr_data_conversion target_order):
     # [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6)]
-    _RIGHT_LEG_POS = slice(15, 21)
-    _LEFT_LEG_POS = slice(21, 27)
-    _RIGHT_LEG_VEL = slice(42, 48)
-    _LEFT_LEG_VEL = slice(48, 54)
+    _RIGHT_LEG_POS = slice(15, 19)
+    _LEFT_LEG_POS = slice(21, 25)
+    _RIGHT_LEG_VEL = slice(42, 46)
+    _LEFT_LEG_VEL = slice(48, 52)
 
     # 66-dim visualization frame offsets
-    _VIS_RIGHT_LEG_POS = slice(21, 27)
-    _VIS_LEFT_LEG_POS = slice(27, 33)
-    _VIS_RIGHT_LEG_VEL = slice(54, 60)
-    _VIS_LEFT_LEG_VEL = slice(60, 66)
+    _VIS_RIGHT_LEG_POS = slice(21, 25)
+    _VIS_LEFT_LEG_POS = slice(27, 31)
+    _VIS_RIGHT_LEG_VEL = slice(54, 58)
+    _VIS_LEFT_LEG_VEL = slice(60, 64)
+
+    @staticmethod
+    def _hip_knee_from_leg_blocks(
+        right_leg_pos: np.ndarray,
+        left_leg_pos: np.ndarray,
+        right_leg_vel: np.ndarray,
+        left_leg_vel: np.ndarray,
+    ) -> np.ndarray:
+        dof = AMPLoader._LEG_AMP_DOF
+        return np.concatenate(
+            [
+                right_leg_pos[:, :dof],
+                left_leg_pos[:, :dof],
+                right_leg_vel[:, :dof],
+                left_leg_vel[:, :dof],
+            ],
+            axis=1,
+        )
 
     @staticmethod
     def extract_amp_obs(motion_data: np.ndarray) -> np.ndarray:
-        """Extract 24-dim lower-body AMP obs from full-body motion frames."""
+        """Extract 16-dim hip+knee AMP obs from motion frames."""
         n_cols = motion_data.shape[1]
         if n_cols == AMPLoader.JOINT_VEL_END_IDX:
             return motion_data
+
+        if n_cols == 24:
+            # Legacy 6-DOF-per-leg expert: [r_pos(6), l_pos(6), r_vel(6), l_vel(6)]
+            return AMPLoader._hip_knee_from_leg_blocks(
+                motion_data[:, 0:6],
+                motion_data[:, 6:12],
+                motion_data[:, 12:18],
+                motion_data[:, 18:24],
+            )
 
         if n_cols >= 66:
             # [root_pos(3), euler(3), joint_pos(27), lin_vel(3), ang_vel(3), joint_vel(27)]
@@ -69,10 +99,12 @@ class AMPLoader:
         else:
             raise ValueError(
                 f"Unsupported motion frame dim={n_cols}. "
-                "Expected 24 (legs only), 54 (joint pos+vel), or 66 (visualization)."
+                "Expected 16 (hip+knee), 24 (legacy legs), 54 (joint pos+vel), or 66 (visualization)."
             )
 
-        return np.concatenate([right_leg_pos, left_leg_pos, right_leg_vel, left_leg_vel], axis=1)
+        return AMPLoader._hip_knee_from_leg_blocks(
+            right_leg_pos, left_leg_pos, right_leg_vel, left_leg_vel
+        )
 
     def __init__(
         self,
