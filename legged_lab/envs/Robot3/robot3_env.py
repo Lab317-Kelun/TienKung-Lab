@@ -418,8 +418,8 @@ class Robot3Env(VecEnv):
         joint_vel = self.robot.data.joint_vel[env_ids].clone()
         joint_pos[:, self.fixed_joint_ids_t] = self.robot.data.default_joint_pos[env_ids][:, self.fixed_joint_ids_t]
         joint_vel[:, self.fixed_joint_ids_t] = 0.0
-        self.robot.write_joint_position_to_sim(joint_pos, env_ids)
-        self.robot.write_joint_velocity_to_sim(joint_vel, env_ids)
+        self.robot.write_joint_position_to_sim(joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim(joint_vel, env_ids=env_ids)
 
     def compute_current_observations(self):
         robot = self.robot
