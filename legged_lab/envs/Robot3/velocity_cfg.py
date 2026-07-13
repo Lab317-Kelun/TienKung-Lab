@@ -131,30 +131,30 @@ class Robot3VelocityRewardCfg:
         },
     )
     
-    joint_deviation_heads = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-1.0,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[".*head_.*_joint"],
-            ),
-        },
-    )
-    joint_deviation_arms = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-0.2,
-        params={
-            "asset_cfg": SceneEntityCfg(
-                "robot",
-                joint_names=[
-                    ".*_shoulder_.*_joint",
-                    ".*_elbow_joint",
-                    ".*_wrist_.*_joint",
-                ],
-            ),
-        },
-    )
+    # joint_deviation_heads = RewTerm(
+    #     func=mdp.joint_deviation_l1,
+    #     weight=-1.0,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg(
+    #             "robot",
+    #             joint_names=[".*head_.*_joint"],
+    #         ),
+    #     },
+    # )
+    # joint_deviation_arms = RewTerm(
+    #     func=mdp.joint_deviation_l1,
+    #     weight=-0.2,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg(
+    #             "robot",
+    #             joint_names=[
+    #                 ".*_shoulder_.*_joint",
+    #                 ".*_elbow_joint",
+    #                 ".*_wrist_.*_joint",
+    #             ],
+    #         ),
+    #     },
+    # )
         
     stand_still = RewTerm(
         func=mdp.joint_deviation_l1,
