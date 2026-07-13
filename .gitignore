@@ -9,3 +9,4 @@ MUJOCO_LOG.TXT
 .history
 Q1_rl_lab/
 IsaacLab/
+legged_lab/assets/Robot3/usd/

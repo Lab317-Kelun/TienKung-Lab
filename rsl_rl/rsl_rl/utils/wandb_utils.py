@@ -43,18 +43,13 @@ class WandbSummaryWriter(SummaryWriter):
         except KeyError:
             raise KeyError("Please specify wandb_project in the runner config, e.g. legged_gym.")
 
-        # Get entity from environment variable or config
-        # 优先使用 WANDB_ENTITY，其次是 WANDB_USERNAME，最后使用默认值
-        entity = os.environ.get("WANDB_ENTITY") or os.environ.get("WANDB_USERNAME") or "polar-bear"
+        entity = os.environ.get("WANDB_ENTITY") or os.environ.get("WANDB_USERNAME")
+        if not entity:
+            entity = "polar-bear"
 
         print(f"[INFO] Initializing WandB with entity='{entity}', project='{project}'")
 
-        # Initialize wandb
-        wandb.init(
-            project=project, 
-            entity=entity, 
-            name=run_name
-        )
+        wandb.init(project=project, entity=entity, name=run_name)
 
         # Add log directory to wandb
         wandb.config.update({"log_dir": log_dir})

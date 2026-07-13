@@ -13,6 +13,7 @@ from legged_lab.assets import ISAAC_ASSET_DIR
 ROBOT3_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         asset_path=f"{ISAAC_ASSET_DIR}/Robot3/urdf/Robot3.urdf",
+        usd_dir=f"{ISAAC_ASSET_DIR}/Robot3/usd",
         fix_base=False,
         joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
             # Required by UrdfFileCfg validation. Runtime PD is set by ImplicitActuatorCfg below.
