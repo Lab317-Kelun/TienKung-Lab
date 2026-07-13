@@ -16,7 +16,7 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 full-body humanoid environment (30-DOF control, 27-DOF AMP body)."""
+"""Robot3 full-body humanoid environment (30-DOF policy, 54-DOF AMP without head)."""
 
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
@@ -314,7 +314,7 @@ class Robot3Env(VecEnv):
         dof_pos[:, self.waist_ids] = waist_pos
         dof_pos[:, self.right_leg_ids] = right_leg_pos
         dof_pos[:, self.left_leg_ids] = left_leg_pos
-        # Head joints are not in AMP motion data; keep default pose during visualization.
+        # Head not in mocap; keep default during visualization.
         dof_pos[:, self.head_ids] = self.robot.data.default_joint_pos[:, self.head_ids]
 
         dof_vel[:, self.right_arm_ids] = right_arm_vel
@@ -378,7 +378,7 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation (full body joints only, no head/end-effectors)."""
+        """Build AMP observation: body joints only, no head (27 pos + 27 vel = 54)."""
         self.right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
         self.left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
         self.waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
@@ -389,8 +389,6 @@ class Robot3Env(VecEnv):
         self.waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
         self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
         self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
-        # left_hand_pos, right_hand_pos = self._compute_hand_positions()
-        # left_foot_pos, right_foot_pos = self._compute_foot_positions()
 
         return torch.cat(
             (
@@ -404,10 +402,6 @@ class Robot3Env(VecEnv):
                 self.waist_dof_vel,
                 self.right_leg_dof_vel,
                 self.left_leg_dof_vel,
-                # left_hand_pos,
-                # right_hand_pos,
-                # left_foot_pos,
-                # right_foot_pos,
             ),
             dim=-1,
         )
@@ -629,7 +623,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs from policy (full body joint positions + joint velocities, no head/end-effectors)."""
+        """Gets AMP obs: body joint pos+vel only (54 dims, no head)."""
         return self._build_amp_obs_from_state()
 
 

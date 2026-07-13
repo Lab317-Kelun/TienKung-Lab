@@ -24,22 +24,34 @@ import torch
 
 
 class AMPLoader:
-    # Robot3 AMP obs (full body without head):
-    # joint_pos: right_arm(7) + left_arm(7) + waist(1) + right_leg(6) + left_leg(6) = 27
-    # joint_vel: 27
-    # end_effector_pos: left_hand(3) + right_hand(3) + left_foot(3) + right_foot(3) = 12 (not used)
+    # Robot3 AMP obs (body only, no head): joint_pos(27) + joint_vel(27) = 54
+    # [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6)]
     JOINT_POS_SIZE = 27
     JOINT_VEL_SIZE = 27
-    END_EFFECTOR_POS_SIZE = 12
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
-
     JOINT_VEL_START_IDX = JOINT_POSE_END_IDX
     JOINT_VEL_END_IDX = JOINT_VEL_START_IDX + JOINT_VEL_SIZE
 
-    END_POS_START_IDX = JOINT_VEL_END_IDX
-    END_POS_END_IDX = END_POS_START_IDX + END_EFFECTOR_POS_SIZE
+    @staticmethod
+    def extract_amp_obs(motion_data: np.ndarray) -> np.ndarray:
+        """Extract 54-dim body AMP obs (no head) from motion frames."""
+        n_cols = motion_data.shape[1]
+
+        if n_cols == AMPLoader.JOINT_VEL_END_IDX:
+            return motion_data
+
+        if n_cols >= 66:
+            # [root_pos(3), euler(3), joint_pos(27), lin_vel(3), ang_vel(3), joint_vel(27)]
+            joint_pos = motion_data[:, 6 : 6 + AMPLoader.JOINT_POS_SIZE]
+            joint_vel = motion_data[:, 39 : 39 + AMPLoader.JOINT_VEL_SIZE]
+            return np.concatenate([joint_pos, joint_vel], axis=1)
+
+        raise ValueError(
+            f"Unsupported motion frame dim={n_cols}. "
+            "Expected 54 (body AMP) or 66 (visualization)."
+        )
 
     def __init__(
         self,
@@ -72,14 +84,8 @@ class AMPLoader:
             with open(motion_file) as f:
                 motion_json = json.load(f)
                 motion_data = np.array(motion_json["Frames"])
-                
-                # Robot3 motion 文件格式 (66维):
-                # [right_arm_pos(7), left_arm_pos(7), waist_pos(1), right_leg_pos(6), left_leg_pos(6),
-                #  right_arm_vel(7), left_arm_vel(7), waist_vel(1), right_leg_vel(6), left_leg_vel(6),
-                #  left_hand_pos(3), right_hand_pos(3), left_foot_pos(3), right_foot_pos(3)]
-                # AMP ref input only keeps joint positions + joint velocities.
-                amp_obs = motion_data[:, : AMPLoader.JOINT_VEL_END_IDX]
-                
+                amp_obs = AMPLoader.extract_amp_obs(motion_data)
+
                 self.trajectories.append(
                     torch.tensor(amp_obs, dtype=torch.float32, device=device)
                 )
@@ -95,7 +101,7 @@ class AMPLoader:
                 self.trajectory_lens.append(traj_len)
                 self.trajectory_num_frames.append(float(motion_data.shape[0]))
 
-            print(f"Loaded {traj_len}s. motion from {motion_file}.")
+            print(f"Loaded {traj_len:.2f}s body motion ({amp_obs.shape[1]} dims, no head) from {motion_file}.")
 
         # Trajectory weights are used to sample some trajectories more than others.
         self.trajectory_weights = np.array(self.trajectory_weights) / np.sum(self.trajectory_weights)
@@ -246,7 +252,7 @@ class AMPLoader:
         blend_joint_q = self.slerp(joints0, joints1, blend)
         blend_joints_vel = self.slerp(joint_vel_0, joint_vel_1, blend)
 
-        # End-effector positions are intentionally excluded from AMP input.
+        # End-effector positions are not part of AMP input.
         return torch.cat([blend_joint_q, blend_joints_vel])
 
     def feed_forward_generator(self, num_mini_batch, mini_batch_size):
@@ -292,11 +298,3 @@ class AMPLoader:
     @staticmethod
     def get_joint_vel_batch(poses):
         return poses[:, AMPLoader.JOINT_VEL_START_IDX : AMPLoader.JOINT_VEL_END_IDX]
-
-    @staticmethod
-    def get_end_pos(pose):
-        return pose[AMPLoader.END_POS_START_IDX : AMPLoader.END_POS_END_IDX]
-
-    @staticmethod
-    def get_end_pos_batch(poses):
-        return poses[:, AMPLoader.END_POS_START_IDX : AMPLoader.END_POS_END_IDX]
