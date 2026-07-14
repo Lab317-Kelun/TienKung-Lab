@@ -471,7 +471,7 @@ class Robot3WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     amp_num_preload_transitions = 200000
     amp_task_reward_lerp = 0.7
     amp_discr_hidden_dims = [1024, 512, 256]
-    min_normalized_std = [0.05] * 12  # 12-DOF lower body (legs only)
+    min_normalized_std = [0.05] * 13  # 13-DOF: legs(12) + waist_yaw(1)
     reduce_amp_reward_at_zero_velocity = False  # 当命令速度接近零时，是否减少AMP奖励
   
 

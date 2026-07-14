@@ -191,18 +191,13 @@ class Robot3Env(VecEnv):
             preserve_order=True,
         )
 
-        # Policy controls legs only (12 DOF). Waist/arms/head stay at default pose.
-        self.action_joint_ids = list(self.left_leg_ids) + list(self.right_leg_ids)
-        self.fixed_joint_ids = (
-            list(self.waist_ids)
-            + list(self.left_arm_ids)
-            + list(self.right_arm_ids)
-            + list(self.head_ids)
-        )
+        # Policy controls legs + waist_yaw (13 DOF). Arms/head stay at default pose.
+        self.action_joint_ids = list(self.left_leg_ids) + list(self.right_leg_ids) + list(self.waist_ids)
+        self.fixed_joint_ids = list(self.left_arm_ids) + list(self.right_arm_ids) + list(self.head_ids)
         self.num_actions = len(self.action_joint_ids)
         self.action_joint_ids_t = torch.tensor(self.action_joint_ids, device=self.device, dtype=torch.long)
         self.fixed_joint_ids_t = torch.tensor(self.fixed_joint_ids, device=self.device, dtype=torch.long)
-        # Indices within the 12-dim action vector: left leg [0:6], right leg [6:12]
+        # Indices within the 13-dim action vector: left leg [0:6], right leg [6:12], waist [12]
         self.action_ankle_indices = torch.tensor([4, 5, 10, 11], device=self.device, dtype=torch.long)
         self.action_hip_roll_indices = torch.tensor([1, 7], device=self.device, dtype=torch.long)
         self.action_hip_yaw_indices = torch.tensor([2, 8], device=self.device, dtype=torch.long)
@@ -329,7 +324,7 @@ class Robot3Env(VecEnv):
         dof_pos[:, self.waist_ids] = waist_pos
         dof_pos[:, self.right_leg_ids] = right_leg_pos
         dof_pos[:, self.left_leg_ids] = left_leg_pos
-        # Upper body and waist are not in policy action space; keep default pose.
+        # Arms/head are not in policy action space; keep default pose.
         dof_pos[:, self.fixed_joint_ids_t] = self.robot.data.default_joint_pos[:, self.fixed_joint_ids_t]
 
         dof_vel[:, self.right_arm_ids] = right_arm_vel
@@ -368,16 +363,8 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # AMP obs: hip+knee only (16 dims), same as robot1_6
-        return torch.cat(
-            (
-                dof_pos[:, self.right_leg_ids[:4]],
-                dof_pos[:, self.left_leg_ids[:4]],
-                dof_vel[:, self.right_leg_ids[:4]],
-                dof_vel[:, self.left_leg_ids[:4]],
-            ),
-            dim=-1,
-        )
+        # Same 18-dim AMP obs as training (waist + hip/knee)
+        return self._build_amp_obs_from_state()
 
     def _compute_hand_positions(self):
         left_hand_pos = (
@@ -402,24 +389,28 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation from hip and knee only (4 pos + 4 vel per leg, 16 dims)."""
-        self.right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids[:4]]
-        self.left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids[:4]]
-        self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids[:4]]
-        self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids[:4]]
+        """Build AMP obs: waist(1) + hip/knee(8) pos/vel = 18 dims."""
+        waist_pos = self.robot.data.joint_pos[:, self.waist_ids]
+        right_leg_pos = self.robot.data.joint_pos[:, self.right_leg_ids[:4]]
+        left_leg_pos = self.robot.data.joint_pos[:, self.left_leg_ids[:4]]
+        waist_vel = self.robot.data.joint_vel[:, self.waist_ids]
+        right_leg_vel = self.robot.data.joint_vel[:, self.right_leg_ids[:4]]
+        left_leg_vel = self.robot.data.joint_vel[:, self.left_leg_ids[:4]]
 
         return torch.cat(
             (
-                self.right_leg_dof_pos,
-                self.left_leg_dof_pos,
-                self.right_leg_dof_vel,
-                self.left_leg_dof_vel,
+                waist_pos,
+                right_leg_pos,
+                left_leg_pos,
+                waist_vel,
+                right_leg_vel,
+                left_leg_vel,
             ),
             dim=-1,
         )
 
     def _pin_fixed_joints(self, env_ids: torch.Tensor):
-        """Keep waist/upper-body/head at default pose after reset randomization."""
+        """Keep arms/head at default pose after reset randomization."""
         if len(env_ids) == 0:
             return
 
@@ -448,9 +439,9 @@ class Robot3Env(VecEnv):
                 ang_vel * self.obs_scales.ang_vel,  # 3
                 projected_gravity * self.obs_scales.projected_gravity,  # 3
                 command * self.obs_scales.commands,  # 3
-                joint_pos * self.obs_scales.joint_pos,  # 12
-                joint_vel * self.obs_scales.joint_vel,  # 12
-                action * self.obs_scales.actions,  # 12
+                joint_pos * self.obs_scales.joint_pos,  # 13
+                joint_vel * self.obs_scales.joint_vel,  # 13
+                action * self.obs_scales.actions,  # 13
             ],
             dim=-1,
         )
@@ -651,7 +642,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs from policy (hip+knee only: 8 pos + 8 vel = 16 dims)."""
+        """Gets AMP obs: waist + hip/knee (9 pos + 9 vel = 18 dims)."""
         return self._build_amp_obs_from_state()
 
 

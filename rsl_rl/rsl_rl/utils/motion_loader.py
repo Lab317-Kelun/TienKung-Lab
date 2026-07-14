@@ -24,11 +24,11 @@ import torch
 
 
 class AMPLoader:
-    # Robot3 lower-body AMP obs (16 dims, hip+knee only):
-    # right_leg_pos(4) + left_leg_pos(4) + right_leg_vel(4) + left_leg_vel(4)
+    # Robot3 AMP obs (18 dims): waist + hip/knee
+    # waist(1) + right_leg(4) + left_leg(4) + waist_vel(1) + right_leg_vel(4) + left_leg_vel(4)
     # Per leg: hip_pitch, hip_roll, hip_yaw, knee (no ankle)
-    JOINT_POS_SIZE = 8
-    JOINT_VEL_SIZE = 8
+    JOINT_POS_SIZE = 9
+    JOINT_VEL_SIZE = 9
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
@@ -39,29 +39,37 @@ class AMPLoader:
 
     # Full-body joint block layout (gmr_data_conversion target_order):
     # [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6)]
+    _WAIST_POS = slice(14, 15)
     _RIGHT_LEG_POS = slice(15, 19)
     _LEFT_LEG_POS = slice(21, 25)
+    _WAIST_VEL = slice(41, 42)
     _RIGHT_LEG_VEL = slice(42, 46)
     _LEFT_LEG_VEL = slice(48, 52)
 
     # 66-dim visualization frame offsets
+    _VIS_WAIST_POS = slice(20, 21)
     _VIS_RIGHT_LEG_POS = slice(21, 25)
     _VIS_LEFT_LEG_POS = slice(27, 31)
+    _VIS_WAIST_VEL = slice(53, 54)
     _VIS_RIGHT_LEG_VEL = slice(54, 58)
     _VIS_LEFT_LEG_VEL = slice(60, 64)
 
     @staticmethod
-    def _hip_knee_from_leg_blocks(
+    def _amp_from_blocks(
+        waist_pos: np.ndarray,
         right_leg_pos: np.ndarray,
         left_leg_pos: np.ndarray,
+        waist_vel: np.ndarray,
         right_leg_vel: np.ndarray,
         left_leg_vel: np.ndarray,
     ) -> np.ndarray:
         dof = AMPLoader._LEG_AMP_DOF
         return np.concatenate(
             [
+                waist_pos,
                 right_leg_pos[:, :dof],
                 left_leg_pos[:, :dof],
+                waist_vel,
                 right_leg_vel[:, :dof],
                 left_leg_vel[:, :dof],
             ],
@@ -70,40 +78,61 @@ class AMPLoader:
 
     @staticmethod
     def extract_amp_obs(motion_data: np.ndarray) -> np.ndarray:
-        """Extract 16-dim hip+knee AMP obs from motion frames."""
+        """Extract 18-dim waist+hip/knee AMP obs from motion frames."""
         n_cols = motion_data.shape[1]
         if n_cols == AMPLoader.JOINT_VEL_END_IDX:
             return motion_data
 
+        n = motion_data.shape[0]
+        if n_cols == 16:
+            # Legacy hip+knee-only: pad waist with zeros
+            zeros = np.zeros((n, 1), dtype=motion_data.dtype)
+            return AMPLoader._amp_from_blocks(
+                zeros,
+                motion_data[:, 0:4],
+                motion_data[:, 4:8],
+                zeros,
+                motion_data[:, 8:12],
+                motion_data[:, 12:16],
+            )
+
         if n_cols == 24:
-            # Legacy 6-DOF-per-leg expert: [r_pos(6), l_pos(6), r_vel(6), l_vel(6)]
-            return AMPLoader._hip_knee_from_leg_blocks(
+            # Legacy 6-DOF-per-leg expert: pad waist with zeros
+            zeros = np.zeros((n, 1), dtype=motion_data.dtype)
+            return AMPLoader._amp_from_blocks(
+                zeros,
                 motion_data[:, 0:6],
                 motion_data[:, 6:12],
+                zeros,
                 motion_data[:, 12:18],
                 motion_data[:, 18:24],
             )
 
         if n_cols >= 66:
             # [root_pos(3), euler(3), joint_pos(27), lin_vel(3), ang_vel(3), joint_vel(27)]
-            right_leg_pos = motion_data[:, AMPLoader._VIS_RIGHT_LEG_POS]
-            left_leg_pos = motion_data[:, AMPLoader._VIS_LEFT_LEG_POS]
-            right_leg_vel = motion_data[:, AMPLoader._VIS_RIGHT_LEG_VEL]
-            left_leg_vel = motion_data[:, AMPLoader._VIS_LEFT_LEG_VEL]
-        elif n_cols >= 54:
-            # [joint_pos(27), joint_vel(27)]
-            right_leg_pos = motion_data[:, AMPLoader._RIGHT_LEG_POS]
-            left_leg_pos = motion_data[:, AMPLoader._LEFT_LEG_POS]
-            right_leg_vel = motion_data[:, AMPLoader._RIGHT_LEG_VEL]
-            left_leg_vel = motion_data[:, AMPLoader._LEFT_LEG_VEL]
-        else:
-            raise ValueError(
-                f"Unsupported motion frame dim={n_cols}. "
-                "Expected 16 (hip+knee), 24 (legacy legs), 54 (joint pos+vel), or 66 (visualization)."
+            return AMPLoader._amp_from_blocks(
+                motion_data[:, AMPLoader._VIS_WAIST_POS],
+                motion_data[:, AMPLoader._VIS_RIGHT_LEG_POS],
+                motion_data[:, AMPLoader._VIS_LEFT_LEG_POS],
+                motion_data[:, AMPLoader._VIS_WAIST_VEL],
+                motion_data[:, AMPLoader._VIS_RIGHT_LEG_VEL],
+                motion_data[:, AMPLoader._VIS_LEFT_LEG_VEL],
             )
 
-        return AMPLoader._hip_knee_from_leg_blocks(
-            right_leg_pos, left_leg_pos, right_leg_vel, left_leg_vel
+        if n_cols >= 54:
+            # [joint_pos(27), joint_vel(27)]
+            return AMPLoader._amp_from_blocks(
+                motion_data[:, AMPLoader._WAIST_POS],
+                motion_data[:, AMPLoader._RIGHT_LEG_POS],
+                motion_data[:, AMPLoader._LEFT_LEG_POS],
+                motion_data[:, AMPLoader._WAIST_VEL],
+                motion_data[:, AMPLoader._RIGHT_LEG_VEL],
+                motion_data[:, AMPLoader._LEFT_LEG_VEL],
+            )
+
+        raise ValueError(
+            f"Unsupported motion frame dim={n_cols}. "
+            "Expected 18 (waist+hip/knee), 16/24 (legacy), 54, or 66 (visualization)."
         )
 
     def __init__(
