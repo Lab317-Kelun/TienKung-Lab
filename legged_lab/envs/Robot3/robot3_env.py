@@ -363,7 +363,7 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # Same 18-dim AMP obs as training (waist + hip/knee)
+        # Same 24-dim AMP obs as training (lin/ang vel + waist + hip/knee)
         return self._build_amp_obs_from_state()
 
     def _compute_hand_positions(self):
@@ -389,7 +389,9 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs: waist(1) + hip/knee(8) pos/vel = 18 dims."""
+        """Build AMP obs (24 dims): root lin/ang vel + waist + hip/knee."""
+        root_lin_vel = self.robot.data.root_lin_vel_b
+        root_ang_vel = self.robot.data.root_ang_vel_b
         waist_pos = self.robot.data.joint_pos[:, self.waist_ids]
         right_leg_pos = self.robot.data.joint_pos[:, self.right_leg_ids[:4]]
         left_leg_pos = self.robot.data.joint_pos[:, self.left_leg_ids[:4]]
@@ -399,6 +401,8 @@ class Robot3Env(VecEnv):
 
         return torch.cat(
             (
+                root_lin_vel,
+                root_ang_vel,
                 waist_pos,
                 right_leg_pos,
                 left_leg_pos,
@@ -642,7 +646,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: waist + hip/knee (9 pos + 9 vel = 18 dims)."""
+        """Gets AMP obs: lin_vel(3)+ang_vel(3)+waist+hip/knee = 24 dims."""
         return self._build_amp_obs_from_state()
 
 
