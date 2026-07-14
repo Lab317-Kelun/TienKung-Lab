@@ -16,7 +16,7 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 full-body humanoid environment (30-DOF policy, 60-DOF AMP without head)."""
+"""Robot3 full-body humanoid environment (30-DOF policy, 66-dim AMP with head)."""
 
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
@@ -272,57 +272,70 @@ class Robot3Env(VecEnv):
         dof_pos = torch.zeros((self.num_envs, self.robot.num_joints), device=device)
         dof_vel = torch.zeros((self.num_envs, self.robot.num_joints), device=device)
 
-        # Frame layout:
-        # [root_pos(3), root_euler(3), joint_pos(...), root_lin_vel(3), root_ang_vel(3), joint_vel(...)]
-        n_right_arm = len(self.right_arm_ids)
-        n_left_arm = len(self.left_arm_ids)
-        n_waist = len(self.waist_ids)
-        n_right_leg = len(self.right_leg_ids)
+        # Official GMR / gmr_data_conversion joint order (with head):
+        # [root_pos(3), euler(3),
+        #  left_leg(6), right_leg(6), waist(1), left_arm(7), right_arm(7), head(3),
+        #  lin_vel_w(3), ang_vel_b(3),
+        #  left_leg_vel(6), right_leg_vel(6), waist_vel(1), left_arm_vel(7), right_arm_vel(7), head_vel(3)]
+        # Total = 72
         n_left_leg = len(self.left_leg_ids)
-        n_joint = n_right_arm + n_left_arm + n_waist + n_right_leg + n_left_leg
-        required_dim = 12 + 2 * n_joint
+        n_right_leg = len(self.right_leg_ids)
+        n_waist = len(self.waist_ids)
+        n_left_arm = len(self.left_arm_ids)
+        n_right_arm = len(self.right_arm_ids)
+        n_head = len(self.head_ids)
+        n_joint_gmr = n_left_leg + n_right_leg + n_waist + n_left_arm + n_right_arm + n_head
+        required_dim = 12 + 2 * n_joint_gmr
         if visual_motion_frame.shape[0] < required_dim:
             raise ValueError(
-                f"visual_motion_frame dim={visual_motion_frame.shape[0]} < required {required_dim}. "
-                "Check AMP visualization dataset format."
+                f"visual_motion_frame dim={visual_motion_frame.shape[0]} < required {required_dim} "
+                f"(GMR layout with {n_joint_gmr} joints). Got wrong visualization file?"
             )
 
-        pos_start = 6
-        right_arm_pos = visual_motion_frame[pos_start : pos_start + n_right_arm]
-        pos_start += n_right_arm
-        left_arm_pos = visual_motion_frame[pos_start : pos_start + n_left_arm]
-        pos_start += n_left_arm
-        waist_pos = visual_motion_frame[pos_start : pos_start + n_waist]
-        pos_start += n_waist
-        right_leg_pos = visual_motion_frame[pos_start : pos_start + n_right_leg]
-        pos_start += n_right_leg
-        left_leg_pos = visual_motion_frame[pos_start : pos_start + n_left_leg]
+        i = 6
+        left_leg_pos = visual_motion_frame[i : i + n_left_leg]
+        i += n_left_leg
+        right_leg_pos = visual_motion_frame[i : i + n_right_leg]
+        i += n_right_leg
+        waist_pos = visual_motion_frame[i : i + n_waist]
+        i += n_waist
+        left_arm_pos = visual_motion_frame[i : i + n_left_arm]
+        i += n_left_arm
+        right_arm_pos = visual_motion_frame[i : i + n_right_arm]
+        i += n_right_arm
+        head_pos = visual_motion_frame[i : i + n_head]
+        i += n_head
 
-        vel_start = 12 + n_joint
-        right_arm_vel = visual_motion_frame[vel_start : vel_start + n_right_arm]
-        vel_start += n_right_arm
-        left_arm_vel = visual_motion_frame[vel_start : vel_start + n_left_arm]
-        vel_start += n_left_arm
-        waist_vel = visual_motion_frame[vel_start : vel_start + n_waist]
-        vel_start += n_waist
-        right_leg_vel = visual_motion_frame[vel_start : vel_start + n_right_leg]
-        vel_start += n_right_leg
-        left_leg_vel = visual_motion_frame[vel_start : vel_start + n_left_leg]
+        lin_vel_w = visual_motion_frame[i : i + 3].clone()
+        i += 3
+        ang_vel_b = visual_motion_frame[i : i + 3].clone()
+        i += 3
 
-        dof_pos[:, self.right_arm_ids] = right_arm_pos
-        dof_pos[:, self.left_arm_ids] = left_arm_pos
-        dof_pos[:, self.waist_ids] = waist_pos
-        dof_pos[:, self.right_leg_ids] = right_leg_pos
+        left_leg_vel = visual_motion_frame[i : i + n_left_leg]
+        i += n_left_leg
+        right_leg_vel = visual_motion_frame[i : i + n_right_leg]
+        i += n_right_leg
+        waist_vel = visual_motion_frame[i : i + n_waist]
+        i += n_waist
+        left_arm_vel = visual_motion_frame[i : i + n_left_arm]
+        i += n_left_arm
+        right_arm_vel = visual_motion_frame[i : i + n_right_arm]
+        i += n_right_arm
+        head_vel = visual_motion_frame[i : i + n_head]
+
         dof_pos[:, self.left_leg_ids] = left_leg_pos
-        # Head not in mocap; keep default during visualization.
-        dof_pos[:, self.head_ids] = self.robot.data.default_joint_pos[:, self.head_ids]
+        dof_pos[:, self.right_leg_ids] = right_leg_pos
+        dof_pos[:, self.waist_ids] = waist_pos
+        dof_pos[:, self.left_arm_ids] = left_arm_pos
+        dof_pos[:, self.right_arm_ids] = right_arm_pos
+        dof_pos[:, self.head_ids] = head_pos
 
-        dof_vel[:, self.right_arm_ids] = right_arm_vel
-        dof_vel[:, self.left_arm_ids] = left_arm_vel
-        dof_vel[:, self.waist_ids] = waist_vel
-        dof_vel[:, self.right_leg_ids] = right_leg_vel
         dof_vel[:, self.left_leg_ids] = left_leg_vel
-        dof_vel[:, self.head_ids] = 0.0
+        dof_vel[:, self.right_leg_ids] = right_leg_vel
+        dof_vel[:, self.waist_ids] = waist_vel
+        dof_vel[:, self.left_arm_ids] = left_arm_vel
+        dof_vel[:, self.right_arm_ids] = right_arm_vel
+        dof_vel[:, self.head_ids] = head_vel
 
         self.robot.write_joint_position_to_sim(dof_pos)
         self.robot.write_joint_velocity_to_sim(dof_vel)
@@ -330,30 +343,50 @@ class Robot3Env(VecEnv):
         env_ids = torch.arange(self.num_envs, device=device)
 
         root_pos = visual_motion_frame[:3].clone()
-        root_pos[2] += 0.3
-
+        # Keep mocap height; do not offset (offset polluted root velocity after physics step).
         euler = visual_motion_frame[3:6].cpu().numpy()
         quat_xyzw = Rotation.from_euler("XYZ", euler, degrees=False).as_quat()  # [x, y, z, w]
         quat_wxyz = torch.tensor(
             [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]], dtype=torch.float32, device=device
         )
 
-        lin_vel = visual_motion_frame[6 + n_joint : 9 + n_joint].clone()
-        ang_vel = visual_motion_frame[9 + n_joint : 12 + n_joint].clone()
+        # Official gmr: lin=WORLD, ang=BODY. Isaac root_state wants WORLD.
+        ang_vel_w = quat_apply(quat_wxyz.unsqueeze(0), ang_vel_b.unsqueeze(0)).squeeze(0)
 
-        # root state: [x, y, z, qw, qx, qy, qz, vx, vy, vz, wx, wy, wz]
         root_state = torch.zeros((self.num_envs, 13), device=device)
         root_state[:, 0:3] = torch.tile(root_pos.unsqueeze(0), (self.num_envs, 1))
         root_state[:, 3:7] = torch.tile(quat_wxyz.unsqueeze(0), (self.num_envs, 1))
-        root_state[:, 7:10] = torch.tile(lin_vel.unsqueeze(0), (self.num_envs, 1))
-        root_state[:, 10:13] = torch.tile(ang_vel.unsqueeze(0), (self.num_envs, 1))
+        root_state[:, 7:10] = torch.tile(lin_vel_w.unsqueeze(0), (self.num_envs, 1))
+        root_state[:, 10:13] = torch.tile(ang_vel_w.unsqueeze(0), (self.num_envs, 1))
 
         self.robot.write_root_state_to_sim(root_state, env_ids)
         self.sim.render()
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        return self._build_amp_obs_from_state()
+        # Export AMP obs from mocap (not polluted post-physics state).
+        # AMP order (66): lin_b, ang_b, right_arm, left_arm, waist, right_leg, left_leg, head (+ vels)
+        lin_vel_b = quat_apply(quat_conjugate(quat_wxyz.unsqueeze(0)), lin_vel_w.unsqueeze(0)).squeeze(0)
+        amp_obs = torch.cat(
+            (
+                lin_vel_b,
+                ang_vel_b,
+                right_arm_pos,
+                left_arm_pos,
+                waist_pos,
+                right_leg_pos,
+                left_leg_pos,
+                head_pos,
+                right_arm_vel,
+                left_arm_vel,
+                waist_vel,
+                right_leg_vel,
+                left_leg_vel,
+                head_vel,
+            ),
+            dim=-1,
+        )
+        return amp_obs.unsqueeze(0).expand(self.num_envs, -1).contiguous()
 
     def _compute_hand_positions(self):
         left_hand_pos = (
@@ -378,7 +411,7 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs (60 dims): root lin/ang vel + body joints, no head."""
+        """Build AMP obs (66 dims): root lin/ang vel + all 30 joints (including head)."""
         root_lin_vel = self.robot.data.root_lin_vel_b
         root_ang_vel = self.robot.data.root_ang_vel_b
         right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
@@ -386,11 +419,13 @@ class Robot3Env(VecEnv):
         waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
         right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids]
         left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids]
+        head_dof_pos = self.robot.data.joint_pos[:, self.head_ids]
         right_arm_dof_vel = self.robot.data.joint_vel[:, self.right_arm_ids]
         left_arm_dof_vel = self.robot.data.joint_vel[:, self.left_arm_ids]
         waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
         right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
         left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
+        head_dof_vel = self.robot.data.joint_vel[:, self.head_ids]
 
         return torch.cat(
             (
@@ -401,11 +436,13 @@ class Robot3Env(VecEnv):
                 waist_dof_pos,
                 right_leg_dof_pos,
                 left_leg_dof_pos,
+                head_dof_pos,
                 right_arm_dof_vel,
                 left_arm_dof_vel,
                 waist_dof_vel,
                 right_leg_dof_vel,
                 left_leg_dof_vel,
+                head_dof_vel,
             ),
             dim=-1,
         )
@@ -627,7 +664,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: lin/ang vel + body joints (60 dims, no head)."""
+        """Gets AMP obs: lin/ang vel + all 30 joints (66 dims, includes head)."""
         return self._build_amp_obs_from_state()
 
 

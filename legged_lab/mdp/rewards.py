@@ -160,6 +160,39 @@ def track_ang_vel_z_world_exp(
     return reward * _upright_gate(env)
 
 
+def track_heading_exp(
+    env: BaseEnv | TienKungEnv,
+    std: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    command_threshold: float | None = None,
+) -> torch.Tensor:
+    """Reward tracking of target heading (world yaw) using exponential kernel.
+
+    Requires ``heading_command=True`` on the velocity command generator so that
+    ``heading_target`` is resampled each command interval.
+    """
+    if not hasattr(env, "command_generator"):
+        raise AttributeError("track_heading_exp requires env.command_generator.")
+
+    cmd_gen = env.command_generator
+    if not cmd_gen.cfg.heading_command:
+        return torch.zeros(env.num_envs, device=env.device)
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    heading_error = math_utils.wrap_to_pi(cmd_gen.heading_target - asset.data.heading_w)
+    reward = torch.exp(-torch.square(heading_error) / std**2)
+
+    reward = reward * cmd_gen.is_heading_env.float()
+    reward = reward * (~cmd_gen.is_standing_env).float()
+
+    if command_threshold is not None:
+        command = cmd_gen.command
+        cmd_norm = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+        reward = reward * (cmd_norm > command_threshold).float()
+
+    return reward * _upright_gate(env)
+
+
 def lin_vel_z_l2(env: BaseEnv | TienKungEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.square(asset.data.root_lin_vel_b[:, 2])

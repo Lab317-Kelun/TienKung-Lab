@@ -56,18 +56,7 @@ def play_amp_animation():
     env_cfg, agent_cfg = task_registry.get_cfgs(env_class_name)
 
     env_cfg.noise.add_noise = False
-    # 禁用所有域随机化
-    env_cfg.domain_rand.events.physics_material = None
-    env_cfg.domain_rand.events.add_base_mass = None
-    env_cfg.domain_rand.events.reset_base = None
-    env_cfg.domain_rand.events.reset_robot_joints = None
     env_cfg.domain_rand.events.push_robot = None
-    env_cfg.domain_rand.events.randomize_com_displacement = None
-    env_cfg.domain_rand.events.randomize_actuator_gains = None
-    env_cfg.domain_rand.events.randomize_link_mass = None
-    env_cfg.domain_rand.action_delay.enable = False
-    env_cfg.domain_rand.action_noise.enable = False
-    env_cfg.domain_rand.actuation_offset.enable = False
     env_cfg.scene.num_envs = 1
     env_cfg.scene.env_spacing = 2.5
     env_cfg.scene.terrain_generator = None

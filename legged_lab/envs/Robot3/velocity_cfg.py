@@ -73,6 +73,11 @@ class Robot3VelocityRewardCfg:
         weight=2.0,
         params={"command_name": "base_velocity", "std": 0.5, "command_threshold": 0.1},
     )
+    track_heading_exp = RewTerm(
+        func=mdp.track_heading_exp,
+        weight=1.0,
+        params={"std": 0.5},
+    )
     # track_ang_vel_z_exp = RewTerm(
     #     func=mdp.track_ang_vel_z_world_exp,
     #     weight=1.0,
@@ -92,7 +97,7 @@ class Robot3VelocityRewardCfg:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
     )
     dof_acc_l2 = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
 
     # === Joint constraints ===
@@ -241,6 +246,7 @@ class Robot3VelocityRewardCfg:
         weight=-2.0,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
     )
+    hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.05)
     # gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_frc_support_perio = RewTerm(func=mdp.gait_feet_frc_support_perio, weight=0.6, params={"delta_t": 0.02})
