@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Convert GMR visualization (72) → 26-dim AMP expert (waist + legs only).
+"""Convert GMR visualization (72) → 32-dim AMP expert (lower body + root vel).
 
 AMP layout:
-  [waist(1), right_leg(6), left_leg(6), same for joint_vel]
-Total = 26
+  [lin_vel_b(3), ang_vel_b(3),
+   waist(1), right_leg(6), left_leg(6),
+   same for joint_vel]
+Total = 32
 """
 
 from __future__ import annotations
@@ -21,13 +23,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--vis", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--lin-frame", choices=["world", "body"], default="world")
     args = p.parse_args()
 
     with open(args.vis) as f:
         data = json.load(f)
     frames = np.asarray(data["Frames"], dtype=np.float64)
-    amp = AMPLoader.extract_amp_obs(frames)
-    assert amp.shape[1] == 26, amp.shape
+    amp = AMPLoader.extract_amp_obs(frames, lin_vel_frame=args.lin_frame)
+    assert amp.shape[1] == 32, amp.shape
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
@@ -45,6 +48,8 @@ def main():
         f.write("]\n}")
 
     print(f"Wrote {args.out} shape={amp.shape}")
+    print(f"  mean lin_b={amp[:, :3].mean(0).round(4)}")
+    print(f"  mean ang_b={amp[:, 3:6].mean(0).round(4)}")
 
 
 if __name__ == "__main__":

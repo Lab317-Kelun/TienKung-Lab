@@ -16,10 +16,10 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 lower-body environment (13-DOF policy: waist + legs).
+"""Robot3 lower-body environment (13-DOF policy: waist + legs, AMP 32 with root vel).
 
 Upper body (arms + head) is PD-locked at default pose.
-AMP obs: 26 dims = joint_pos(13) + joint_vel(13).
+AMP obs: 32 dims = lin_b(3) + ang_b(3) + joint_pos(13) + joint_vel(13).
 """
 
 import isaaclab.sim as sim_utils
@@ -380,9 +380,12 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # Export AMP obs: lower body only (26): waist, right_leg, left_leg (+ vels)
+        # Export AMP (32): lin_b, ang_b, waist, right_leg, left_leg (+ joint vels)
+        lin_vel_b = quat_apply(quat_conjugate(quat_wxyz.unsqueeze(0)), lin_vel_w.unsqueeze(0)).squeeze(0)
         amp_obs = torch.cat(
             (
+                lin_vel_b,
+                ang_vel_b,
                 waist_pos,
                 right_leg_pos,
                 left_leg_pos,
@@ -417,7 +420,9 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs (26 dims): waist + legs joint pos/vel only."""
+        """Build AMP obs (32 dims): lin_b, ang_b + waist + legs pos/vel."""
+        root_lin_vel = self.robot.data.root_lin_vel_b
+        root_ang_vel = self.robot.data.root_ang_vel_b
         waist_dof_pos = self.robot.data.joint_pos[:, self.waist_joint_ids]
         right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_joint_ids]
         left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_joint_ids]
@@ -427,6 +432,8 @@ class Robot3Env(VecEnv):
 
         return torch.cat(
             (
+                root_lin_vel,
+                root_ang_vel,
                 waist_dof_pos,
                 right_leg_dof_pos,
                 left_leg_dof_pos,
@@ -661,7 +668,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: waist + legs pos/vel (26 dims)."""
+        """Gets AMP obs: lin/ang + waist + legs (32 dims)."""
         return self._build_amp_obs_from_state()
 
 
