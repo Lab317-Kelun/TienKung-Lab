@@ -18,13 +18,13 @@
 
 """AMP expert loader for Robot3 full-body motion (including head).
 
-Training AMP obs (66 dims, body frame):
-  [lin_vel(3), ang_vel(3), joint_pos(30), joint_vel(30)]
+Training AMP obs (60 dims): joint positions + velocities only (no root lin/ang vel).
+  [joint_pos(30), joint_vel(30)]
 
 Joint order:
   right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6), head(3)
 
-Also accepts 72-dim GMR visualization frames and converts them to 66-dim AMP obs.
+Also accepts 72-dim GMR visualization / legacy 66-dim AMP and strips root velocities.
 """
 
 import glob
@@ -35,30 +35,21 @@ import torch
 
 
 class AMPLoader:
-    # AMP obs layout (full body including head)
-    ROOT_LIN_VEL_SIZE = 3
-    ROOT_ANG_VEL_SIZE = 3
-    ROOT_VEL_SIZE = ROOT_LIN_VEL_SIZE + ROOT_ANG_VEL_SIZE  # 6
+    # AMP obs layout: joints only (full body including head)
     JOINT_POS_SIZE = 30
     JOINT_VEL_SIZE = 30
-    AMP_OBS_SIZE = ROOT_VEL_SIZE + JOINT_POS_SIZE + JOINT_VEL_SIZE  # 66
+    AMP_OBS_SIZE = JOINT_POS_SIZE + JOINT_VEL_SIZE  # 60
 
-    ROOT_LIN_VEL_START_IDX = 0
-    ROOT_LIN_VEL_END_IDX = ROOT_LIN_VEL_START_IDX + ROOT_LIN_VEL_SIZE
-    ROOT_ANG_VEL_START_IDX = ROOT_LIN_VEL_END_IDX
-    ROOT_ANG_VEL_END_IDX = ROOT_ANG_VEL_START_IDX + ROOT_ANG_VEL_SIZE
-
-    JOINT_POSE_START_IDX = ROOT_ANG_VEL_END_IDX
+    JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
-
     JOINT_VEL_START_IDX = JOINT_POSE_END_IDX
     JOINT_VEL_END_IDX = JOINT_VEL_START_IDX + JOINT_VEL_SIZE
 
-    # 72 = official GMR visualization with head
-    # 66 = AMP (with head) after play_amp; legacy vis-without-head also 66 (detected by root z)
-    # 60 = legacy AMP without head (pad head zeros)
+    # 72 = GMR visualization with head (still includes root vel; stripped for AMP)
+    # 66 = legacy AMP with lin/ang + 30 joints → drop first 6
+    # 60 = current AMP (joints only)
     _VIS_DIM_WITH_HEAD = 72
-    _LEGACY_AMP_NO_HEAD = 60
+    _LEGACY_AMP_WITH_ROOT_VEL = 66
 
     @staticmethod
     def _gmr_joints_to_amp(joint_block: np.ndarray) -> np.ndarray:
@@ -79,56 +70,30 @@ class AMPLoader:
 
     @staticmethod
     def extract_amp_obs(motion_data: np.ndarray, lin_vel_frame: str = "world") -> np.ndarray:
-        """Convert frames to 66-dim AMP obs (full body including head)."""
+        """Convert frames to 60-dim AMP obs: joint_pos(30) + joint_vel(30)."""
         n_cols = motion_data.shape[1]
-        n = motion_data.shape[0]
 
+        # Current AMP: joints only [jpos30, jvel30]
         if n_cols == AMPLoader.AMP_OBS_SIZE:
-            # AMP-66 vs legacy vis-66 (no head): vis root z ≈ 1m at index 2
-            if abs(float(motion_data[:, 2].mean())) > 0.3:
-                from scipy.spatial.transform import Rotation
-
-                euler = motion_data[:, 3:6]
-                joint_pos = motion_data[:, 6:33]
-                lin = motion_data[:, 33:36]
-                ang = motion_data[:, 36:39]
-                joint_vel = motion_data[:, 39:66]
-                if lin_vel_frame == "world":
-                    lin = Rotation.from_euler("XYZ", euler).apply(lin, inverse=True)
-                zeros3 = np.zeros((n, 3), dtype=np.float64)
-                joint_pos = np.concatenate([AMPLoader._gmr_joints_to_amp(joint_pos), zeros3], axis=1)
-                joint_vel = np.concatenate([AMPLoader._gmr_joints_to_amp(joint_vel), zeros3], axis=1)
-                return np.concatenate([lin, ang, joint_pos, joint_vel], axis=1)
             return motion_data.astype(np.float64, copy=False)
 
-        if n_cols == AMPLoader._LEGACY_AMP_NO_HEAD:
-            zeros3 = np.zeros((n, 3), dtype=np.float64)
-            return np.concatenate(
-                [motion_data[:, :6], motion_data[:, 6:33], zeros3, motion_data[:, 33:60], zeros3],
-                axis=1,
-            )
+        # Legacy AMP with root vel + 30 joints: drop lin/ang
+        if n_cols == AMPLoader._LEGACY_AMP_WITH_ROOT_VEL:
+            return motion_data[:, 6:66].astype(np.float64, copy=False)
 
-        from scipy.spatial.transform import Rotation
-
+        # GMR visualization 72: extract & reorder joints only
         if n_cols >= AMPLoader._VIS_DIM_WITH_HEAD:
             n_j = 30
-            euler = motion_data[:, 3:6]
             joint_pos = motion_data[:, 6 : 6 + n_j]
-            lin = motion_data[:, 6 + n_j : 9 + n_j]
-            ang = motion_data[:, 9 + n_j : 12 + n_j]
             joint_vel = motion_data[:, 12 + n_j : 12 + 2 * n_j]
-            if lin_vel_frame == "world":
-                lin = Rotation.from_euler("XYZ", euler).apply(lin, inverse=True)
-            elif lin_vel_frame != "body":
-                raise ValueError(f"Unknown lin_vel_frame={lin_vel_frame}")
             joint_pos = AMPLoader._gmr_joints_to_amp(joint_pos)
             joint_vel = AMPLoader._gmr_joints_to_amp(joint_vel)
-            return np.concatenate([lin, ang, joint_pos, joint_vel], axis=1)
+            return np.concatenate([joint_pos, joint_vel], axis=1)
 
         raise ValueError(
             f"Unsupported motion frame dim={n_cols}. "
-            f"Expected {AMPLoader.AMP_OBS_SIZE} (AMP with head), "
-            f"{AMPLoader._LEGACY_AMP_NO_HEAD} (legacy AMP), "
+            f"Expected {AMPLoader.AMP_OBS_SIZE} (joint AMP), "
+            f"{AMPLoader._LEGACY_AMP_WITH_ROOT_VEL} (legacy AMP with root vel), "
             f"or {AMPLoader._VIS_DIM_WITH_HEAD} (GMR visualization)."
         )
 
@@ -146,8 +111,9 @@ class AMPLoader:
         """Expert dataset for AMP discriminator / reward.
 
         time_between_frames: seconds between (s, s_next) transitions (usually env.step_dt).
-        lin_vel_frame: used only when loading 66-dim visualization files.
+        lin_vel_frame: unused (kept for API compat); AMP no longer stores root velocities.
         """
+        del lin_vel_frame  # unused
         self.device = device
         self.time_between_frames = time_between_frames
 
@@ -165,7 +131,7 @@ class AMPLoader:
             with open(motion_file) as f:
                 motion_json = json.load(f)
                 motion_data = np.array(motion_json["Frames"], dtype=np.float64)
-                amp_obs = AMPLoader.extract_amp_obs(motion_data, lin_vel_frame=lin_vel_frame)
+                amp_obs = AMPLoader.extract_amp_obs(motion_data)
 
                 self.trajectories.append(torch.tensor(amp_obs, dtype=torch.float32, device=device))
                 self.trajectories_full.append(torch.tensor(amp_obs, dtype=torch.float32, device=device))
@@ -179,7 +145,7 @@ class AMPLoader:
 
             print(
                 f"Loaded {traj_len:.2f}s AMP motion ({amp_obs.shape[1]} dims: "
-                f"lin/ang vel + joint_pos/vel) from {motion_file}."
+                f"joint_pos + joint_vel) from {motion_file}."
             )
 
         self._full_obs_dim = self.trajectories[0].shape[1]
@@ -308,14 +274,6 @@ class AMPLoader:
     @property
     def num_motions(self):
         return len(self.trajectory_names)
-
-    @staticmethod
-    def get_root_lin_vel(pose):
-        return pose[AMPLoader.ROOT_LIN_VEL_START_IDX : AMPLoader.ROOT_LIN_VEL_END_IDX]
-
-    @staticmethod
-    def get_root_ang_vel(pose):
-        return pose[AMPLoader.ROOT_ANG_VEL_START_IDX : AMPLoader.ROOT_ANG_VEL_END_IDX]
 
     @staticmethod
     def get_joint_pose(pose):

@@ -16,7 +16,7 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 full-body humanoid environment (30-DOF policy, 66-dim AMP with head)."""
+"""Robot3 full-body humanoid environment (30-DOF policy, 60-dim AMP: joint pos/vel only)."""
 
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
@@ -364,13 +364,10 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # Export AMP obs from mocap (not polluted post-physics state).
-        # AMP order (66): lin_b, ang_b, right_arm, left_arm, waist, right_leg, left_leg, head (+ vels)
-        lin_vel_b = quat_apply(quat_conjugate(quat_wxyz.unsqueeze(0)), lin_vel_w.unsqueeze(0)).squeeze(0)
+        # Export AMP obs from mocap: joints only (no root lin/ang vel).
+        # AMP order (60): right_arm, left_arm, waist, right_leg, left_leg, head (+ vels)
         amp_obs = torch.cat(
             (
-                lin_vel_b,
-                ang_vel_b,
                 right_arm_pos,
                 left_arm_pos,
                 waist_pos,
@@ -411,9 +408,7 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs (66 dims): root lin/ang vel + all 30 joints (including head)."""
-        root_lin_vel = self.robot.data.root_lin_vel_b
-        root_ang_vel = self.robot.data.root_ang_vel_b
+        """Build AMP obs (60 dims): all 30 joints pos/vel only (including head, no root vel)."""
         right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
         left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
         waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
@@ -429,8 +424,6 @@ class Robot3Env(VecEnv):
 
         return torch.cat(
             (
-                root_lin_vel,
-                root_ang_vel,
                 right_arm_dof_pos,
                 left_arm_dof_pos,
                 waist_dof_pos,
@@ -664,7 +657,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: lin/ang vel + all 30 joints (66 dims, includes head)."""
+        """Gets AMP obs: all 30 joints pos/vel (60 dims, includes head, no root vel)."""
         return self._build_amp_obs_from_state()
 
 

@@ -73,11 +73,11 @@ class Robot3VelocityRewardCfg:
         weight=2.0,
         params={"command_name": "base_velocity", "std": 0.5, "command_threshold": 0.1},
     )
-    track_heading_exp = RewTerm(
-        func=mdp.track_heading_exp,
-        weight=1.0,
-        params={"std": 0.5},
-    )
+    # track_heading_exp = RewTerm(
+    #     func=mdp.track_heading_exp,
+    #     weight=1.0,
+    #     params={"std": 0.5},
+    # )
     # track_ang_vel_z_exp = RewTerm(
     #     func=mdp.track_ang_vel_z_world_exp,
     #     weight=1.0,
