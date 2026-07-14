@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Convert GMR visualization (72) → 60-dim AMP expert (joints only, including head).
+"""Convert GMR visualization (72) → 26-dim AMP expert (waist + legs only).
 
 AMP layout:
-  [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6), head(3),
-   same for joint_vel]
-Total = 60
+  [waist(1), right_leg(6), left_leg(6), same for joint_vel]
+Total = 26
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ def main():
         data = json.load(f)
     frames = np.asarray(data["Frames"], dtype=np.float64)
     amp = AMPLoader.extract_amp_obs(frames)
-    assert amp.shape[1] == 60, amp.shape
+    assert amp.shape[1] == 26, amp.shape
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:
@@ -46,8 +45,6 @@ def main():
         f.write("]\n}")
 
     print(f"Wrote {args.out} shape={amp.shape}")
-    print(f"  joint_pos mean[:6]={amp[:, :6].mean(0).round(4)}")
-    print(f"  joint_vel mean[:6]={amp[:, 30:36].mean(0).round(4)}")
 
 
 if __name__ == "__main__":
