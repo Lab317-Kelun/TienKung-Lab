@@ -16,7 +16,7 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 full-body humanoid environment (30-DOF policy, 54-DOF AMP without head)."""
+"""Robot3 full-body humanoid environment (30-DOF policy, 60-DOF AMP without head)."""
 
 import isaaclab.sim as sim_utils
 import isaacsim.core.utils.torch as torch_utils  # type: ignore
@@ -378,30 +378,34 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP observation: body joints only, no head (27 pos + 27 vel = 54)."""
-        self.right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
-        self.left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
-        self.waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
-        self.right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids]
-        self.left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids]
-        self.right_arm_dof_vel = self.robot.data.joint_vel[:, self.right_arm_ids]
-        self.left_arm_dof_vel = self.robot.data.joint_vel[:, self.left_arm_ids]
-        self.waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
-        self.right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
-        self.left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
+        """Build AMP obs (60 dims): root lin/ang vel + body joints, no head."""
+        root_lin_vel = self.robot.data.root_lin_vel_b
+        root_ang_vel = self.robot.data.root_ang_vel_b
+        right_arm_dof_pos = self.robot.data.joint_pos[:, self.right_arm_ids]
+        left_arm_dof_pos = self.robot.data.joint_pos[:, self.left_arm_ids]
+        waist_dof_pos = self.robot.data.joint_pos[:, self.waist_ids]
+        right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_ids]
+        left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_ids]
+        right_arm_dof_vel = self.robot.data.joint_vel[:, self.right_arm_ids]
+        left_arm_dof_vel = self.robot.data.joint_vel[:, self.left_arm_ids]
+        waist_dof_vel = self.robot.data.joint_vel[:, self.waist_ids]
+        right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_ids]
+        left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_ids]
 
         return torch.cat(
             (
-                self.right_arm_dof_pos,
-                self.left_arm_dof_pos,
-                self.waist_dof_pos,
-                self.right_leg_dof_pos,
-                self.left_leg_dof_pos,
-                self.right_arm_dof_vel,
-                self.left_arm_dof_vel,
-                self.waist_dof_vel,
-                self.right_leg_dof_vel,
-                self.left_leg_dof_vel,
+                root_lin_vel,
+                root_ang_vel,
+                right_arm_dof_pos,
+                left_arm_dof_pos,
+                waist_dof_pos,
+                right_leg_dof_pos,
+                left_leg_dof_pos,
+                right_arm_dof_vel,
+                left_arm_dof_vel,
+                waist_dof_vel,
+                right_leg_dof_vel,
+                left_leg_dof_vel,
             ),
             dim=-1,
         )
@@ -623,7 +627,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: body joint pos+vel only (54 dims, no head)."""
+        """Gets AMP obs: lin/ang vel + body joints (60 dims, no head)."""
         return self._build_amp_obs_from_state()
 
 

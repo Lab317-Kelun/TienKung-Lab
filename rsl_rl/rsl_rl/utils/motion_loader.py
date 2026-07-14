@@ -24,33 +24,54 @@ import torch
 
 
 class AMPLoader:
-    # Robot3 AMP obs (body only, no head): joint_pos(27) + joint_vel(27) = 54
+    # Robot3 full-body AMP obs (60 dims, no head):
+    # lin_vel(3) + ang_vel(3) + joint_pos(27) + joint_vel(27)
     # [right_arm(7), left_arm(7), waist(1), right_leg(6), left_leg(6)]
+    ROOT_VEL_SIZE = 6  # lin(3) + ang(3)
     JOINT_POS_SIZE = 27
     JOINT_VEL_SIZE = 27
 
     JOINT_POSE_START_IDX = 0
-    JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
+    JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + ROOT_VEL_SIZE + JOINT_POS_SIZE
     JOINT_VEL_START_IDX = JOINT_POSE_END_IDX
     JOINT_VEL_END_IDX = JOINT_VEL_START_IDX + JOINT_VEL_SIZE
 
+    # 66-dim visualization: [root_pos(3), euler(3), joint_pos(27), lin_vel(3), ang_vel(3), joint_vel(27)]
+    _VIS_LIN_VEL = slice(33, 36)
+    _VIS_ANG_VEL = slice(36, 39)
+
     @staticmethod
     def extract_amp_obs(motion_data: np.ndarray) -> np.ndarray:
-        """Extract 54-dim body AMP obs (no head) from motion frames."""
+        """Extract 60-dim body AMP obs (root lin/ang vel + joints, no head)."""
         n_cols = motion_data.shape[1]
-
         if n_cols == AMPLoader.JOINT_VEL_END_IDX:
             return motion_data
 
+        n = motion_data.shape[0]
+        zeros3 = np.zeros((n, 3), dtype=motion_data.dtype)
+
         if n_cols >= 66:
-            # [root_pos(3), euler(3), joint_pos(27), lin_vel(3), ang_vel(3), joint_vel(27)]
             joint_pos = motion_data[:, 6 : 6 + AMPLoader.JOINT_POS_SIZE]
             joint_vel = motion_data[:, 39 : 39 + AMPLoader.JOINT_VEL_SIZE]
-            return np.concatenate([joint_pos, joint_vel], axis=1)
+            return np.concatenate(
+                [
+                    motion_data[:, AMPLoader._VIS_LIN_VEL],
+                    motion_data[:, AMPLoader._VIS_ANG_VEL],
+                    joint_pos,
+                    joint_vel,
+                ],
+                axis=1,
+            )
+
+        if n_cols >= 54:
+            # Legacy body-only expert: pad root velocities with zeros
+            joint_pos = motion_data[:, : AMPLoader.JOINT_POS_SIZE]
+            joint_vel = motion_data[:, AMPLoader.JOINT_POS_SIZE : AMPLoader.JOINT_VEL_END_IDX - AMPLoader.ROOT_VEL_SIZE]
+            return np.concatenate([zeros3, zeros3, joint_pos, joint_vel], axis=1)
 
         raise ValueError(
             f"Unsupported motion frame dim={n_cols}. "
-            "Expected 54 (body AMP) or 66 (visualization)."
+            "Expected 60 (body AMP), 54 (legacy body), or 66 (visualization)."
         )
 
     def __init__(
