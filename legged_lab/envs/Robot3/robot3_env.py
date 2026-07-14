@@ -19,7 +19,7 @@
 """Robot3 lower-body environment (13-DOF policy: waist + legs).
 
 Upper body (arms + head) is PD-locked at default pose.
-AMP obs: 26 dims = joint_pos(13) + joint_vel(13).
+AMP obs: 18 dims = waist + hips/knees (no ankle, no root vel).
 """
 
 import isaaclab.sim as sim_utils
@@ -380,15 +380,15 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # Export AMP obs: lower body only (26): waist, right_leg, left_leg (+ vels)
+        # Export AMP (18): waist + R/L leg without ankle (hip*3 + knee), no root vel
         amp_obs = torch.cat(
             (
                 waist_pos,
-                right_leg_pos,
-                left_leg_pos,
+                right_leg_pos[:4],
+                left_leg_pos[:4],
                 waist_vel,
-                right_leg_vel,
-                left_leg_vel,
+                right_leg_vel[:4],
+                left_leg_vel[:4],
             ),
             dim=-1,
         )
@@ -417,13 +417,14 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs (26 dims): waist + legs joint pos/vel only."""
+        """Build AMP obs (18 dims): waist + hips/knees pos/vel (no ankle, no root vel)."""
         waist_dof_pos = self.robot.data.joint_pos[:, self.waist_joint_ids]
-        right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_joint_ids]
-        left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_joint_ids]
+        # leg joint order: pitch, roll, yaw, knee, ankle_pitch, ankle_roll → drop ankles
+        right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_joint_ids[:4]]
+        left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_joint_ids[:4]]
         waist_dof_vel = self.robot.data.joint_vel[:, self.waist_joint_ids]
-        right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_joint_ids]
-        left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_joint_ids]
+        right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_joint_ids[:4]]
+        left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_joint_ids[:4]]
 
         return torch.cat(
             (
@@ -661,7 +662,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: waist + legs pos/vel (26 dims)."""
+        """Gets AMP obs: waist + hips/knees (18 dims, no ankle, no root vel)."""
         return self._build_amp_obs_from_state()
 
 

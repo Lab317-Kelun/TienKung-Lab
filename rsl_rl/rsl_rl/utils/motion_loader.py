@@ -16,15 +16,14 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""AMP expert loader for Robot3 lower-body motion (waist + legs).
+"""AMP expert loader for Robot3 lower-body (no ankles, no root vel).
 
-Training AMP obs (26 dims):
-  [joint_pos(13), joint_vel(13)]
+Training AMP obs (18 dims):
+  [joint_pos(9), joint_vel(9)]
 
 Joint order:
-  waist(1), right_leg(6), left_leg(6)
-
-Also accepts 72-dim GMR visualization / legacy full-body AMP and extracts lower body.
+  waist(1), right_leg_no_ankle(4), left_leg_no_ankle(4)
+  each leg: hip_pitch, hip_roll, hip_yaw, knee
 """
 
 import glob
@@ -35,9 +34,9 @@ import torch
 
 
 class AMPLoader:
-    JOINT_POS_SIZE = 13
-    JOINT_VEL_SIZE = 13
-    AMP_OBS_SIZE = JOINT_POS_SIZE + JOINT_VEL_SIZE  # 26
+    JOINT_POS_SIZE = 9
+    JOINT_VEL_SIZE = 9
+    AMP_OBS_SIZE = JOINT_POS_SIZE + JOINT_VEL_SIZE  # 18
 
     JOINT_POSE_START_IDX = 0
     JOINT_POSE_END_IDX = JOINT_POSE_START_IDX + JOINT_POS_SIZE
@@ -45,50 +44,69 @@ class AMPLoader:
     JOINT_VEL_END_IDX = JOINT_VEL_START_IDX + JOINT_VEL_SIZE
 
     _VIS_DIM_WITH_HEAD = 72
-    _LEGACY_FULL_AMP = 60  # Rarm7,Larm7,waist1,Rleg6,Lleg6,head3 (+vel)
+    _LEGACY_LOWER_WITH_ANKLE = 26  # waist + Rleg6 + Lleg6 (+vel)
+    _LEGACY_FULL_AMP = 60
     _LEGACY_FULL_AMP_WITH_ROOT = 66
 
     @staticmethod
-    def _lower_body_from_gmr(joint_block: np.ndarray) -> np.ndarray:
-        """GMR joints → AMP lower-body order: waist, right_leg, left_leg.
+    def _amp_joints_from_gmr(joint_block: np.ndarray) -> np.ndarray:
+        """GMR joints → AMP (no ankle): waist, Rleg[:4], Lleg[:4].
 
-        GMR: Lleg6, Rleg6, waist1, Larm7, Rarm7 [, head3]
+        GMR: Lleg6, Rleg6, waist1, ...
         """
-        left_leg = joint_block[:, 0:6]
-        right_leg = joint_block[:, 6:12]
+        left_leg = joint_block[:, 0:4]  # drop ankle
+        right_leg = joint_block[:, 6:10]
         waist = joint_block[:, 12:13]
         return np.concatenate([waist, right_leg, left_leg], axis=1)
 
     @staticmethod
-    def _lower_body_from_full_amp(joint_block: np.ndarray) -> np.ndarray:
-        """Full-body AMP joints → lower body.
+    def _amp_joints_from_full_amp(joint_block: np.ndarray) -> np.ndarray:
+        """Full AMP joints → no-ankle lower body.
 
-        Full AMP: Rarm7, Larm7, waist1, Rleg6, Lleg6 [, head3]
+        Full: Rarm7, Larm7, waist1, Rleg6, Lleg6 [, head]
         """
         waist = joint_block[:, 14:15]
-        right_leg = joint_block[:, 15:21]
-        left_leg = joint_block[:, 21:27]
+        right_leg = joint_block[:, 15:19]
+        left_leg = joint_block[:, 21:25]
+        return np.concatenate([waist, right_leg, left_leg], axis=1)
+
+    @staticmethod
+    def _drop_ankles_from_lower13(joint_block: np.ndarray) -> np.ndarray:
+        """waist + Rleg6 + Lleg6 → waist + Rleg4 + Lleg4."""
+        waist = joint_block[:, 0:1]
+        right_leg = joint_block[:, 1:5]
+        left_leg = joint_block[:, 7:11]
         return np.concatenate([waist, right_leg, left_leg], axis=1)
 
     @staticmethod
     def extract_amp_obs(motion_data: np.ndarray, lin_vel_frame: str = "world") -> np.ndarray:
-        """Convert frames to 26-dim AMP obs: joint_pos(13) + joint_vel(13)."""
-        del lin_vel_frame  # unused
+        """Convert frames to 18-dim AMP: joint_pos(9) + joint_vel(9), no ankle, no root vel."""
+        del lin_vel_frame
         n_cols = motion_data.shape[1]
 
         if n_cols == AMPLoader.AMP_OBS_SIZE:
             return motion_data.astype(np.float64, copy=False)
 
-        # Legacy full-body AMP with root vel: drop first 6, then take lower body
-        if n_cols == AMPLoader._LEGACY_FULL_AMP_WITH_ROOT:
-            jpos = AMPLoader._lower_body_from_full_amp(motion_data[:, 6:36])
-            jvel = AMPLoader._lower_body_from_full_amp(motion_data[:, 36:66])
+        # Lower body with ankles (26)
+        if n_cols == AMPLoader._LEGACY_LOWER_WITH_ANKLE:
+            jpos = AMPLoader._drop_ankles_from_lower13(motion_data[:, 0:13])
+            jvel = AMPLoader._drop_ankles_from_lower13(motion_data[:, 13:26])
             return np.concatenate([jpos, jvel], axis=1)
 
-        # Legacy full-body AMP joints only (60)
+        # Full AMP with root vel (66)
+        if n_cols == AMPLoader._LEGACY_FULL_AMP_WITH_ROOT:
+            jpos = AMPLoader._amp_joints_from_full_amp(motion_data[:, 6:36])
+            jvel = AMPLoader._amp_joints_from_full_amp(motion_data[:, 36:66])
+            return np.concatenate([jpos, jvel], axis=1)
+
+        # Full AMP joints only (60)
         if n_cols == AMPLoader._LEGACY_FULL_AMP:
-            jpos = AMPLoader._lower_body_from_full_amp(motion_data[:, 0:30])
-            jvel = AMPLoader._lower_body_from_full_amp(motion_data[:, 30:60])
+            if abs(float(motion_data[:, 0].mean())) > 0.3:
+                jpos = AMPLoader._amp_joints_from_full_amp(motion_data[:, 6:33])
+                jvel = AMPLoader._amp_joints_from_full_amp(motion_data[:, 33:60])
+            else:
+                jpos = AMPLoader._amp_joints_from_full_amp(motion_data[:, 0:30])
+                jvel = AMPLoader._amp_joints_from_full_amp(motion_data[:, 30:60])
             return np.concatenate([jpos, jvel], axis=1)
 
         # GMR visualization 72
@@ -96,15 +114,13 @@ class AMPLoader:
             n_j = 30
             joint_pos = motion_data[:, 6 : 6 + n_j]
             joint_vel = motion_data[:, 12 + n_j : 12 + 2 * n_j]
-            joint_pos = AMPLoader._lower_body_from_gmr(joint_pos)
-            joint_vel = AMPLoader._lower_body_from_gmr(joint_vel)
+            joint_pos = AMPLoader._amp_joints_from_gmr(joint_pos)
+            joint_vel = AMPLoader._amp_joints_from_gmr(joint_vel)
             return np.concatenate([joint_pos, joint_vel], axis=1)
 
         raise ValueError(
             f"Unsupported motion frame dim={n_cols}. "
-            f"Expected {AMPLoader.AMP_OBS_SIZE} (lower-body AMP), "
-            f"{AMPLoader._LEGACY_FULL_AMP}/{AMPLoader._LEGACY_FULL_AMP_WITH_ROOT} (full AMP), "
-            f"or {AMPLoader._VIS_DIM_WITH_HEAD} (GMR visualization)."
+            f"Expected {AMPLoader.AMP_OBS_SIZE} (AMP no-ankle), 26/60/66, or 72."
         )
 
     def __init__(
@@ -150,7 +166,7 @@ class AMPLoader:
 
             print(
                 f"Loaded {traj_len:.2f}s AMP motion ({amp_obs.shape[1]} dims: "
-                f"waist+legs joint_pos/vel) from {motion_file}."
+                f"waist+hips/knees, no ankle) from {motion_file}."
             )
 
         self._full_obs_dim = self.trajectories[0].shape[1]
