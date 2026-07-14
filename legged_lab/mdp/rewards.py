@@ -75,7 +75,7 @@ def track_lin_vel_xy_yaw_frame_exp(
 ) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
     command = _get_command(env, command_name)
-    vel_yaw = math_utils.quat_apply_inverse(
+    vel_yaw = math_utils.quat_rotate_inverse(
         math_utils.yaw_quat(asset.data.root_quat_w), asset.data.root_lin_vel_w[:, :3])
     lin_vel_error = torch.sum(torch.square(command[:, :2] - vel_yaw[:, :2]), dim=1)
     reward = torch.exp(-lin_vel_error / std**2)

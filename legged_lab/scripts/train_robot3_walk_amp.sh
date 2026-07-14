@@ -11,4 +11,5 @@ python legged_lab/scripts/train.py \
   --headless \
   --num_envs=4096 \
   --logger=wandb \
-  --seed=42
+  --seed=42 \
+  --run_name=no_feet_amp
