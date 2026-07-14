@@ -214,15 +214,15 @@ class Robot3VelocityRewardCfg:
             "threshold": 1.0,
         },
     )
-    feet_force = RewTerm(
-        func=mdp.body_force,
-        weight=-3e-3,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
-            "threshold": 500,
-            "max_reward": 400,
-        },
-    )
+    # feet_force = RewTerm(
+    #     func=mdp.body_force,
+    #     weight=-3e-3,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
+    #         "threshold": 500,
+    #         "max_reward": 400,
+    #     },
+    # )
     feet_distance_lateral = RewTerm(
         func=mdp.feet_distance_lateral,
         weight=5.0,  # 增加权重以更严格惩罚双脚并拢
