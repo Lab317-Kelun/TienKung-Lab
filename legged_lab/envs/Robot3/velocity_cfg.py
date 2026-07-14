@@ -173,7 +173,7 @@ class Robot3VelocityRewardCfg:
     )
 
     # === Posture ===
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
     body_orientation_l2 = RewTerm(
         func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="pelvis")}, weight=-2.0
     )
@@ -198,7 +198,7 @@ class Robot3VelocityRewardCfg:
     )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
-        weight=-0.2,
+        weight=-0.25,
         params={
             "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*ankle_roll.*"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
