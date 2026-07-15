@@ -50,16 +50,16 @@ ROBOT3_CFG = ArticulationCfg(
             "right_ankle_roll_joint": 0.0,
             "waist_yaw_joint": 0.0,
             "left_shoulder_pitch_joint": -0.0,
-            "left_shoulder_roll_joint": 0.1,
+            "left_shoulder_roll_joint": 0.0,
             "left_shoulder_yaw_joint": 0.0,
-            "left_elbow_joint": -0.7,
+            "left_elbow_joint": -0.0,
             "left_wrist_roll_joint": 0.0,
             "left_wrist_pitch_joint": 0.0,
             "left_wrist_yaw_joint": 0.0,
             "right_shoulder_pitch_joint": -0.0,
-            "right_shoulder_roll_joint": -0.1,
+            "right_shoulder_roll_joint": -0.0,
             "right_shoulder_yaw_joint": -0.0,
-            "right_elbow_joint": -0.7,
+            "right_elbow_joint": -0.0,
             "right_wrist_roll_joint": 0.0,
             "right_wrist_pitch_joint": 0.0,
             "right_wrist_yaw_joint": 0.0,
@@ -178,12 +178,12 @@ ROBOT3_CFG = ArticulationCfg(
                 "head_.*_joint": 5.562,            # 6.18 * 0.9
             },
             stiffness={
-                ".*_shoulder_pitch_joint": 80.0,
-                ".*_shoulder_roll_joint": 40.0,
-                ".*_shoulder_yaw_joint": 30.0,
-                ".*_elbow_joint": 30.0,
-                ".*_wrist_.*_joint": 20.0,
-                "head_.*_joint": 20.0,
+                ".*_shoulder_pitch_joint": 120.0,   #80.0->120.0
+                ".*_shoulder_roll_joint": 60.0,   #40.0->60.0
+                ".*_shoulder_yaw_joint": 45.0,   #30.0->45.0
+                ".*_elbow_joint": 40.0,          #30.0->40.0
+                ".*_wrist_.*_joint": 20.0,       #20.0->20.0
+                "head_.*_joint": 20.0,           #20.0->20.0
             },
             damping={
                 ".*_shoulder_pitch_joint": 4.0,
