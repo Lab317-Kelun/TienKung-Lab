@@ -311,7 +311,7 @@ class Robot3WalkFlatEnvCfg:
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=CommandRangesCfg(
-            lin_vel_x=(-0.6, 1.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-0.5, 0.5), heading=(-math.pi, math.pi)
+            lin_vel_x=(-0.6, 0.8), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-0.5, 0.5), heading=(-math.pi, math.pi)
         ),
         velocity_threshold=0.0,  # 速度命令阈值：当x、y、yaw方向的绝对值小于此值时，设置为0
     )
