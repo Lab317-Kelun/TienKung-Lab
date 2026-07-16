@@ -16,10 +16,10 @@
 # with additional modifications by the TienKung-Lab Project,
 # and is distributed under the BSD-3-Clause license.
 
-"""Robot3 lower-body environment (13-DOF policy: waist + legs).
+"""Robot3 lower-body environment (12-DOF policy: legs only).
 
-Upper body (arms + head) is PD-locked at default pose.
-AMP obs: 18 dims = waist + hips/knees (no ankle, no root vel).
+Waist + upper body (arms + head) are PD-locked at default pose.
+AMP obs: 16 dims = hips/knees only (no waist, no ankle, no root vel).
 """
 
 import isaaclab.sim as sim_utils
@@ -192,17 +192,17 @@ class Robot3Env(VecEnv):
             preserve_order=True,
         )
 
-        # Policy / AMP order (13): waist(1), right_leg(6), left_leg(6)
-        self.controlled_joint_ids = (
-            list(self.waist_joint_ids) + list(self.right_leg_joint_ids) + list(self.left_leg_joint_ids)
+        # Policy order (12): right_leg(6), left_leg(6). Waist is locked (not controlled).
+        self.controlled_joint_ids = list(self.right_leg_joint_ids) + list(self.left_leg_joint_ids)
+        self.locked_joint_ids = (
+            list(self.waist_joint_ids) + list(self.left_arm_ids) + list(self.right_arm_ids) + list(self.head_ids)
         )
         self.upper_body_joint_ids = list(self.left_arm_ids) + list(self.right_arm_ids) + list(self.head_ids)
-        self.num_actions = len(self.controlled_joint_ids)  # 13
+        self.num_actions = len(self.controlled_joint_ids)  # 12
 
         # Action-local indices (for rewards that index into env.action)
-        self.waist_ids = [0]
-        self.right_leg_ids = list(range(1, 7))
-        self.left_leg_ids = list(range(7, 13))
+        self.right_leg_ids = list(range(0, 6))
+        self.left_leg_ids = list(range(6, 12))
         self.ankle_joint_ids = [
             self.left_leg_ids[4],
             self.right_leg_ids[4],
@@ -294,9 +294,9 @@ class Robot3Env(VecEnv):
         #  lin_vel_w(3), ang_vel_b(3),
         #  left_leg_vel(6), right_leg_vel(6), waist_vel(1), left_arm_vel(7), right_arm_vel(7), head_vel(3)]
         # Total = 72
-        n_left_leg = len(self.left_leg_ids)
-        n_right_leg = len(self.right_leg_ids)
-        n_waist = len(self.waist_ids)
+        n_left_leg = len(self.left_leg_joint_ids)
+        n_right_leg = len(self.right_leg_joint_ids)
+        n_waist = len(self.waist_joint_ids)
         n_left_arm = len(self.left_arm_ids)
         n_right_arm = len(self.right_arm_ids)
         n_head = len(self.head_ids)
@@ -380,13 +380,11 @@ class Robot3Env(VecEnv):
         self.sim.step()
         self.scene.update(dt=self.step_dt)
 
-        # Export AMP (18): waist + R/L leg without ankle (hip*3 + knee), no root vel
+        # Export AMP (16): R/L leg without ankle (hip*3 + knee), no waist, no root vel
         amp_obs = torch.cat(
             (
-                waist_pos,
                 right_leg_pos[:4],
                 left_leg_pos[:4],
-                waist_vel,
                 right_leg_vel[:4],
                 left_leg_vel[:4],
             ),
@@ -417,21 +415,17 @@ class Robot3Env(VecEnv):
         return left_foot_pos, right_foot_pos
 
     def _build_amp_obs_from_state(self):
-        """Build AMP obs (18 dims): waist + hips/knees pos/vel (no ankle, no root vel)."""
-        waist_dof_pos = self.robot.data.joint_pos[:, self.waist_joint_ids]
+        """Build AMP obs (16 dims): hips/knees pos/vel (no waist, no ankle, no root vel)."""
         # leg joint order: pitch, roll, yaw, knee, ankle_pitch, ankle_roll → drop ankles
         right_leg_dof_pos = self.robot.data.joint_pos[:, self.right_leg_joint_ids[:4]]
         left_leg_dof_pos = self.robot.data.joint_pos[:, self.left_leg_joint_ids[:4]]
-        waist_dof_vel = self.robot.data.joint_vel[:, self.waist_joint_ids]
         right_leg_dof_vel = self.robot.data.joint_vel[:, self.right_leg_joint_ids[:4]]
         left_leg_dof_vel = self.robot.data.joint_vel[:, self.left_leg_joint_ids[:4]]
 
         return torch.cat(
             (
-                waist_dof_pos,
                 right_leg_dof_pos,
                 left_leg_dof_pos,
-                waist_dof_vel,
                 right_leg_dof_vel,
                 left_leg_dof_vel,
             ),
@@ -456,9 +450,9 @@ class Robot3Env(VecEnv):
                 ang_vel * self.obs_scales.ang_vel,  # 3
                 projected_gravity * self.obs_scales.projected_gravity,  # 3
                 command * self.obs_scales.commands,  # 3
-                joint_pos * self.obs_scales.joint_pos,  # 13
-                joint_vel * self.obs_scales.joint_vel,  # 13
-                action * self.obs_scales.actions,  # 13
+                joint_pos * self.obs_scales.joint_pos,  # 12
+                joint_vel * self.obs_scales.joint_vel,  # 12
+                action * self.obs_scales.actions,  # 12
             ],
             dim=-1,
         )
@@ -549,14 +543,12 @@ class Robot3Env(VecEnv):
         if self.cfg.domain_rand.action_noise.enable:
             self.action += self.cfg.domain_rand.action_noise.noise_scale * torch.randn_like(self.action) * self.action
 
-        # Lower body from policy; upper body locked at default pose (PD hold).
+        # Legs from policy; waist + upper body locked at default pose (PD hold).
         processed_actions = self.robot.data.default_joint_pos.clone()
         processed_actions[:, self.controlled_joint_ids] = (
             self.action * self.action_scale + self.robot.data.default_joint_pos[:, self.controlled_joint_ids]
         )
-        processed_actions[:, self.upper_body_joint_ids] = self.robot.data.default_joint_pos[
-            :, self.upper_body_joint_ids
-        ]
+        processed_actions[:, self.locked_joint_ids] = self.robot.data.default_joint_pos[:, self.locked_joint_ids]
 
         self.avg_feet_force_per_step = torch.zeros(
             self.num_envs, len(self.feet_cfg.body_ids), dtype=torch.float, device=self.device, requires_grad=False
@@ -662,7 +654,7 @@ class Robot3Env(VecEnv):
         return actor_obs, self.extras
 
     def get_amp_obs_for_expert_trans(self):
-        """Gets AMP obs: waist + hips/knees (18 dims, no ankle, no root vel)."""
+        """Gets AMP obs: hips/knees only (16 dims, no waist/ankle/root vel)."""
         return self._build_amp_obs_from_state()
 
 

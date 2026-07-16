@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")/../.."
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=5
 export WANDB_ENTITY=polar-bear
 
 python legged_lab/scripts/train.py \
@@ -12,4 +12,4 @@ python legged_lab/scripts/train.py \
   --num_envs=4096 \
   --logger=wandb \
   --seed=42 \
-  --run_name=lower_amp_novel_noankle
+  --run_name=lower_nowaist_rew1

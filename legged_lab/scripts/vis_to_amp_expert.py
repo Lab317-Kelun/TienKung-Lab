@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Convert GMR visualization (72) → 18-dim AMP expert (no ankle, no root vel).
+"""Convert GMR visualization (72) → 16-dim AMP expert (legs only, no waist/ankle).
 
 AMP layout:
-  [waist(1), right_leg_no_ankle(4), left_leg_no_ankle(4), same for joint_vel]
-Total = 18
+  [right_leg_no_ankle(4), left_leg_no_ankle(4), same for joint_vel]
+Total = 16
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def main():
         data = json.load(f)
     frames = np.asarray(data["Frames"], dtype=np.float64)
     amp = AMPLoader.extract_amp_obs(frames)
-    assert amp.shape[1] == 18, amp.shape
+    assert amp.shape[1] == 16, amp.shape
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w") as f:

@@ -174,7 +174,7 @@ class Robot3VelocityRewardCfg:
 
     stand_still = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-1.0,
+        weight=-5.0,
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=LOWER_BODY_JOINT_NAMES),
             "command_threshold": 0.1,
@@ -182,14 +182,14 @@ class Robot3VelocityRewardCfg:
     )
     stand_still_feet = RewTerm(
         func=mdp.stand_still,
-        weight=-10.0,
+        weight=-20.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
         },
     )
 
     # === Posture ===
-    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-1.0)
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-3.0)
     body_orientation_l2 = RewTerm(
         func=mdp.body_orientation_l2, params={"asset_cfg": SceneEntityCfg("robot", body_names="pelvis")}, weight=-2.0
     )
@@ -269,7 +269,7 @@ class Robot3VelocityRewardCfg:
         weight=-2.0,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
     )
-    hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.05)
+    # hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.05)
     # gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_frc_support_perio = RewTerm(func=mdp.gait_feet_frc_support_perio, weight=0.6, params={"delta_t": 0.02})

@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument("--save_path", type=str, default=None, help="Path to save the txt file")
+parser.add_argument("--save_path", type=str, default=None, help="Save AMP expert (16: hips/knees only)")
 parser.add_argument("--fps", type=float, default=30.0, help="Target fps")
 
 # append RSL-RL cli arguments
