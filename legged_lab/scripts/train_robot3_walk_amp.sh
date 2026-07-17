@@ -12,4 +12,4 @@ python legged_lab/scripts/train.py \
   --num_envs=4096 \
   --logger=wandb \
   --seed=42 \
-  --run_name=lower_nowaist_rew1
+  --run_name=lower_nowaist_walk1
