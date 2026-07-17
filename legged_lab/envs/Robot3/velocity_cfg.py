@@ -172,21 +172,21 @@ class Robot3VelocityRewardCfg:
     #     },
     # )
 
-    # stand_still = RewTerm(
-    #     func=mdp.joint_deviation_l1,
-    #     weight=-1.0,
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=LOWER_BODY_JOINT_NAMES),
-    #         "command_threshold": 0.1,
-    #     },
-    # )
-    # stand_still_feet = RewTerm(
-    #     func=mdp.stand_still,
-    #     weight=-5.0,
-    #     params={
-    #         "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
-    #     },
-    # )
+    stand_still = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-2.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=LOWER_BODY_JOINT_NAMES),
+            "command_threshold": 0.1,
+        },
+    )
+    stand_still_feet = RewTerm(
+        func=mdp.stand_still,
+        weight=-5.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_sensor", body_names=".*_ankle_roll_link"),
+        },
+    )
 
     # === Posture ===
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-2.0)

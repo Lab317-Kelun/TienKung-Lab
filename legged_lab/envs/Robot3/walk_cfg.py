@@ -305,7 +305,7 @@ class Robot3WalkFlatEnvCfg:
     )
     commands: CommandsCfg = CommandsCfg(
         resampling_time_range=(5.0, 10.0),
-        rel_standing_envs=0.0,
+        rel_standing_envs=0.3,
         rel_heading_envs=1.0,
         heading_command=True,
         heading_control_stiffness=0.5,
@@ -464,7 +464,7 @@ class Robot3WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     amp_task_reward_lerp = 0.7
     amp_discr_hidden_dims = [1024, 512, 256]
     min_normalized_std = [0.05] * 12  # legs only (waist locked)
-    reduce_amp_reward_at_zero_velocity = False  # 当命令速度接近零时，是否减少AMP奖励
+    reduce_amp_reward_at_zero_velocity = True  # 当命令速度接近零时，是否减少AMP奖励
   
 
 @configclass
