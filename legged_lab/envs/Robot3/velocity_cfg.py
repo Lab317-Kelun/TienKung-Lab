@@ -251,24 +251,24 @@ class Robot3VelocityRewardCfg:
     #         "max_reward": 400,
     #     },
     # )
-    # feet_distance_lateral = RewTerm(
-    #     func=mdp.feet_distance_lateral,
-    #     weight=5.0,  # 增加权重以更严格惩罚双脚并拢
-    #     params={"min_distance": 0.22, "max_distance": 0.35}, 
-    # )
-    # knee_distance_lateral = RewTerm(
-    #     func=mdp.knee_distance_lateral,
-    #     weight=5.0,
-    #     params={"min_distance": 0.20, "max_distance": 0.30},  
-    # )
+    feet_distance_lateral = RewTerm(
+        func=mdp.feet_distance_lateral,
+        weight=5.0,  # 增加权重以更严格惩罚双脚并拢
+        params={"min_distance": 0.22, "max_distance": 0.35}, 
+    )
+    knee_distance_lateral = RewTerm(
+        func=mdp.knee_distance_lateral,
+        weight=5.0,
+        params={"min_distance": 0.20, "max_distance": 0.30},  
+    )
     
-    # feet_y_distance = RewTerm(func=mdp.feet_y_distance, weight=-2.0)
+    feet_y_distance = RewTerm(func=mdp.feet_y_distance, weight=-2.0)
 
-    # feet_too_near = RewTerm(
-    #     func=mdp.feet_too_near_humanoid,
-    #     weight=-2.0,
-    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
-    # )
+    feet_too_near = RewTerm(
+        func=mdp.feet_too_near_humanoid,
+        weight=-2.0,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
+    )
     # hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.05)
     # gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})
