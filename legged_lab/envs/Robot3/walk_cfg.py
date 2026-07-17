@@ -343,15 +343,7 @@ class Robot3WalkFlatEnvCfg:
                 func=mdp.randomize_rigid_body_mass,
                 mode="startup",
                 params={
-                    "asset_cfg": SceneEntityCfg(
-                        "robot",
-                        body_names=[
-                            ".*_hip_pitch_link",
-                            ".*_hip_roll_link",
-                            ".*_hip_yaw_link",
-                            ".*_knee_link",
-                        ],
-                    ),
+                    "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
                     "mass_distribution_params": (0.9, 1.1),
                     "operation": "scale",
                 },
