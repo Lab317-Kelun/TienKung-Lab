@@ -305,13 +305,13 @@ class Robot3WalkFlatEnvCfg:
     )
     commands: CommandsCfg = CommandsCfg(
         resampling_time_range=(5.0, 10.0),
-        rel_standing_envs=0.0,
-        rel_heading_envs=1.0,
+        rel_standing_envs=1.0,
+        rel_heading_envs=0.0,
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
         ranges=CommandRangesCfg(
-            lin_vel_x=(-0.6, 0.8), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-0.5, 0.5), heading=(-math.pi, math.pi)
+            lin_vel_x=(-0.0, 0.0), lin_vel_y=(-0.0, 0.0), ang_vel_z=(-0.0, 0.0), heading=(0.0, 0.0)
         ),
         velocity_threshold=0.0,  # 速度命令阈值：当x、y、yaw方向的绝对值小于此值时，设置为0
     )
@@ -343,15 +343,7 @@ class Robot3WalkFlatEnvCfg:
                 func=mdp.randomize_rigid_body_mass,
                 mode="startup",
                 params={
-                    "asset_cfg": SceneEntityCfg(
-                        "robot",
-                        body_names=[
-                            ".*_hip_pitch_link",
-                            ".*_hip_roll_link",
-                            ".*_hip_yaw_link",
-                            ".*_knee_link",
-                        ],
-                    ),
+                    "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
                     "mass_distribution_params": (0.9, 1.1),
                     "operation": "scale",
                 },
@@ -466,10 +458,10 @@ class Robot3WalkAgentCfg(RslRlOnPolicyRunnerCfg):
     load_checkpoint = "model_.*.pt"
 
     # amp parameter
-    amp_reward_coef = 0.3
+    amp_reward_coef = 0.0
     amp_motion_files = ["legged_lab/envs/Robot3/datasets/motion_amp_expert/AI2Robot_Walk.txt"]
     amp_num_preload_transitions = 200000
-    amp_task_reward_lerp = 0.7
+    amp_task_reward_lerp = 1.0
     amp_discr_hidden_dims = [1024, 512, 256]
     min_normalized_std = [0.05] * 12  # legs only (waist locked)
     reduce_amp_reward_at_zero_velocity = False  # 当命令速度接近零时，是否减少AMP奖励
