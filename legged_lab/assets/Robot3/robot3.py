@@ -121,24 +121,30 @@ ROBOT3_CFG = ArticulationCfg(
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             effort_limit_sim={
-                ".*_ankle_pitch_joint": 63,  # 70 * 0.9
-                ".*_ankle_roll_joint": 63,   # 70 * 0.9
+                ".*_ankle_pitch_joint": 52.5 * 3.029,
+                ".*_ankle_roll_joint": 52.5 * 1.713,
             },
             velocity_limit_sim={
-                ".*_ankle_pitch_joint": 16.587,  # 18.43 * 0.9
-                ".*_ankle_roll_joint": 16.587,   # 18.43 * 0.9
+                ".*_ankle_pitch_joint": 8.4 * 0.660,
+                ".*_ankle_roll_joint": 8.4 * 1.167,
             },
             stiffness={
-                ".*_ankle_pitch_joint": 30.0,
-                ".*_ankle_roll_joint": 16.8,
+                ".*_ankle_pitch_joint": 100 * 4.589,
+                ".*_ankle_roll_joint": 100 * 1.467,
             },
             damping={
-                ".*_ankle_pitch_joint": 2.5,
-                ".*_ankle_roll_joint": 1.4,
+                ".*_ankle_pitch_joint": 2.5 * 4.589,
+                ".*_ankle_roll_joint": 2.5 * 1.467,
             },
             # X6: J=0.0245 kg·m², Fc=0.5666 Nm, Fv=0.06872 Nm/(rad/s)
-            armature=0.0245,
-            friction=0.5666,
+            armature={
+                ".*_ankle_pitch_joint": 0.003 *4.589,
+                ".*_ankle_roll_joint": 0.003 * 1.467,
+            },
+            friction={
+                ".*_ankle_pitch_joint": 0.5666,
+                ".*_ankle_roll_joint": 0.5666,
+            },
         ),
         # Only assign waist motor params for now; other upper-body joints keep None.
         "waist": ImplicitActuatorCfg(

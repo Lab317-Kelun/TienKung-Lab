@@ -29,6 +29,7 @@ from isaaclab.sensors import ContactSensor
 if TYPE_CHECKING:
     from legged_lab.envs.base.base_env import BaseEnv
     from legged_lab.envs.tienkung.tienkung_env import TienKungEnv
+    from legged_lab.envs.Robot3.robot3_env import Robot3Env
 
 
 def _get_command(env, command_name: str | None = None) -> torch.Tensor:
