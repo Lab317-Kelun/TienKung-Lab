@@ -112,8 +112,8 @@ POLICY_JOINT_PD = {
     ".*_hip_roll_joint": (700.0, 10.0),
     ".*_knee_joint": (700.0, 10.0),
     ".*_hip_yaw_joint": (500.0, 5.0),
-    ".*_ankle_pitch_joint": (30.0, 2.5),
-    ".*_ankle_roll_joint": (16.8, 1.4),
+    ".*_ankle_pitch_joint": (80.0 * 4.589, 5.0 * 4.589),  # 367.12, 22.945
+    ".*_ankle_roll_joint": (80.0 * 1.467, 5.0 * 1.467),  # 117.36, 7.335
 }
 LOCKED_JOINT_PD = {
     "waist_yaw_joint": (500.0, 5.0),
@@ -256,15 +256,13 @@ class MujocoRunner:
     def _init_gains_and_limits(self) -> None:
         kp_list = []
         kd_list = []
-        for act_id, name in enumerate(self.mujoco_actuator_names):
-            kp, kd_pd = _lookup_pd_gain(name)
-            # Fv is modeled as passive joint damping in MJCF (system ID).
-            # Subtract it from external PD kd to avoid double-counting viscous damping.
-            passive_fv = float(self.model.dof_damping[self._qvel_idx[act_id]])
+        for name in self.mujoco_actuator_names:
+            kp, kd = _lookup_pd_gain(name)
             kp_list.append(kp)
-            kd_list.append(max(0.0, kd_pd - passive_fv))
+            kd_list.append(kd)
         self.kp = np.array(kp_list, dtype=np.float64)
         self.kd = np.array(kd_list, dtype=np.float64)
+        # Torque limits come from MJCF actuator ctrlrange / actuatorfrcrange.
         self.ctrl_lo = self.model.actuator_ctrlrange[:, 0].copy()
         self.ctrl_hi = self.model.actuator_ctrlrange[:, 1].copy()
 
@@ -433,8 +431,14 @@ class MujocoRunner:
             print("[WARNING] No torque data recorded for plotting.")
             return
 
-        torque_array = np.array(self.torque_history)
-        time_array = np.array(self.time_history)
+        torque_array = np.array(self.torque_history)  # (num_steps, 12) in ISAAC POLICY_JOINT_NAMES order
+        time_array = np.array(self.time_history)  # (num_steps,)
+
+        # Peak torque limits from MJCF actuator ctrlrange (ankle: 75×gear, others from robot3 effort_limit).
+        # Plot threshold annotates peak × 0.7 (same derating as Isaac effort_limit_sim for ankles: 52.5=75×0.7).
+        # `mujoco_to_isaac_idx[i]` maps ISAAC joint index -> MuJoCo actuator index.
+        actuator_ctrlrange = self.model.actuator_ctrlrange
+        isaac_peak = np.abs(actuator_ctrlrange[self.mujoco_to_isaac_idx, 1])  # (12,)
 
         joint_groups = {
             "Hip Pitch": {"indices": [0, 6], "names": ["Right Hip Pitch", "Left Hip Pitch"]},
@@ -445,24 +449,79 @@ class MujocoRunner:
             "Ankle Roll": {"indices": [5, 11], "names": ["Right Ankle Roll", "Left Ankle Roll"]},
         }
 
+        threshold_ratio = 0.7  # annotate peak×0.7 limit line
+
         fig, axes = plt.subplots(3, 2, figsize=(16, 12))
-        fig.suptitle("Robot3 Policy Joint Torque Curves", fontsize=16, fontweight="bold")
+        fig.suptitle("Robot3 Policy Joint Torque Curves (peak×0.7 limit)", fontsize=16, fontweight="bold")
         axes_flat = axes.flatten()
+
+        group_results: dict[str, dict[str, float | bool]] = {}
 
         for idx, (group_name, group_info) in enumerate(joint_groups.items()):
             ax = axes_flat[idx]
+
+            group_indices = group_info["indices"]
+            group_peak = float(np.max(isaac_peak[group_indices]))
+            group_threshold = group_peak * threshold_ratio
+
+            # Plot each joint curve.
             for joint_idx, joint_name in zip(group_info["indices"], group_info["names"]):
                 ax.plot(time_array, torque_array[:, joint_idx], label=joint_name, linewidth=1.5, alpha=0.8)
+
+            # Peak×0.7 limit lines.
+            pos_line_label = f"Peak×0.7 (+{group_threshold:.1f} Nm)"
+            ax.axhline(y=group_threshold, color="r", linestyle="--", linewidth=2, label=pos_line_label, alpha=0.7)
+            ax.axhline(y=-group_threshold, color="r", linestyle="--", linewidth=2, label="_nolegend_", alpha=0.7)
+
+            # Violation check and title color.
+            max_abs_torque = float(np.max(np.abs(torque_array[:, group_indices])))
+            violation = max_abs_torque > group_threshold
+            if violation:
+                ax.set_title(
+                    f"{group_name} (⚠️ MAX: {max_abs_torque:.2f} Nm > {group_threshold:.2f} Nm)",
+                    fontsize=12,
+                    fontweight="bold",
+                    color="red",
+                )
+            else:
+                ax.set_title(
+                    f"{group_name} (MAX: {max_abs_torque:.2f} Nm)",
+                    fontsize=12,
+                    fontweight="bold",
+                    color="green",
+                )
+
             ax.set_xlabel("Time (s)")
             ax.set_ylabel("Torque (Nm)")
             ax.grid(True, alpha=0.3)
             ax.legend(loc="upper right", fontsize=8)
-            ax.set_title(group_name)
+            ax.set_xlim([time_array[0], time_array[-1]])
+
+            group_results[group_name] = {
+                "max_abs_torque": max_abs_torque,
+                "group_peak": group_peak,
+                "group_threshold": group_threshold,
+                "violation": violation,
+            }
 
         plt.tight_layout()
         output_path = "robot3_torque_curves.png"
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         print(f"\n[INFO] Torque curves saved to: {output_path}")
+
+        # Print summary.
+        print("\n" + "=" * 80)
+        print("TORQUE SUMMARY (limit = peak×0.7 from MJCF ctrlrange)")
+        print("=" * 80)
+        for group_name, r in group_results.items():
+            violation = bool(r["violation"])
+            status = "⚠️ EXCEEDED" if violation else "✓ OK"
+            print(
+                f"{group_name:12s}: Max={r['max_abs_torque']:.2f} Nm, "
+                f"Peak={r['group_peak']:.2f} Nm, Limit={r['group_threshold']:.2f} Nm  {status}"
+            )
+        print("=" * 80)
+
         plt.show(block=False)
 
     def _setup_keyboard_listener(self) -> None:

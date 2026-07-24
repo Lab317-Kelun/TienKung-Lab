@@ -253,13 +253,13 @@ class Robot3VelocityRewardCfg:
     # )
     feet_distance_lateral = RewTerm(
         func=mdp.feet_distance_lateral,
-        weight=5.0,  # 增加权重以更严格惩罚双脚并拢
-        params={"min_distance": 0.20, "max_distance": 0.32}, 
+        weight=3.0,  # 增加权重以更严格惩罚双脚并拢
+        params={"min_distance": 0.19, "max_distance": 0.30}, 
     )
     knee_distance_lateral = RewTerm(
         func=mdp.knee_distance_lateral,
-        weight=5.0,
-        params={"min_distance": 0.20, "max_distance": 0.30},  
+        weight=3.0,
+        params={"min_distance": 0.19, "max_distance": 0.30},  
     )
     
     feet_y_distance = RewTerm(func=mdp.feet_y_distance, weight=-2.0)
@@ -269,8 +269,8 @@ class Robot3VelocityRewardCfg:
         weight=-2.0,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_ankle_roll_link"]), "threshold": 0.2},
     )
-    ankle_torque = RewTerm(func=mdp.ankle_torque, weight=-0.0005)
-    ankle_action = RewTerm(func=mdp.ankle_action, weight=-0.001)
+    # ankle_torque = RewTerm(func=mdp.ankle_torque, weight=-0.0005)
+    # ankle_action = RewTerm(func=mdp.ankle_action, weight=-0.001)
     # hip_yaw_action = RewTerm(func=mdp.hip_yaw_action, weight=-0.05)
     # gait_feet_frc_perio = RewTerm(func=mdp.gait_feet_frc_perio, weight=1.0, params={"delta_t": 0.02})
     # gait_feet_spd_perio = RewTerm(func=mdp.gait_feet_spd_perio, weight=1.0, params={"delta_t": 0.02})

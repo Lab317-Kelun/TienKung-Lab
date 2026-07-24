@@ -121,20 +121,20 @@ ROBOT3_CFG = ArticulationCfg(
         "feet": ImplicitActuatorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
             effort_limit_sim={
-                ".*_ankle_pitch_joint": 52.5 * 3.029,
-                ".*_ankle_roll_joint": 52.5 * 1.713,
+                ".*_ankle_pitch_joint": 52.5 * 1.713,
+                ".*_ankle_roll_joint": 52.5* 1.0,
             },
             velocity_limit_sim={
                 ".*_ankle_pitch_joint": 8.4 * 0.660,
                 ".*_ankle_roll_joint": 8.4 * 1.167,
             },
             stiffness={
-                ".*_ankle_pitch_joint": 100 * 4.589,
-                ".*_ankle_roll_joint": 100 * 1.467,
+                ".*_ankle_pitch_joint": 80 * 4.589,   #50 70 90 110 130 150
+                ".*_ankle_roll_joint": 80 * 1.467,     #50 70 90 110 130 150
             },
             damping={
-                ".*_ankle_pitch_joint": 2.5 * 4.589,
-                ".*_ankle_roll_joint": 2.5 * 1.467,
+                ".*_ankle_pitch_joint": 5 * 4.589,   #3.125 4.375 5.625 6.875 8.125 9.375
+                ".*_ankle_roll_joint": 5 * 1.467,   #3.125 4.375 5.625 6.875 8.125 9.375
             },
             # X6: J=0.0245 kg·m², Fc=0.5666 Nm, Fv=0.06872 Nm/(rad/s)
             armature={
