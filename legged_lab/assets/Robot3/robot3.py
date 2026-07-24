@@ -129,12 +129,12 @@ ROBOT3_CFG = ArticulationCfg(
                 ".*_ankle_roll_joint": 8.4 * 1.167,
             },
             stiffness={
-                ".*_ankle_pitch_joint": 80 * 4.589,   #50 70 90 110 130 150
-                ".*_ankle_roll_joint": 80 * 1.467,     #50 70 90 110 130 150
+                ".*_ankle_pitch_joint": 80,   #50 70 90 110 130 150  80 * 4.589
+                ".*_ankle_roll_joint": 80,     #50 70 90 110 130 150 80 * 1.467
             },
             damping={
-                ".*_ankle_pitch_joint": 5 * 4.589,   #3.125 4.375 5.625 6.875 8.125 9.375
-                ".*_ankle_roll_joint": 5 * 1.467,   #3.125 4.375 5.625 6.875 8.125 9.375
+                ".*_ankle_pitch_joint": 5,   #3.125 4.375 5.625 6.875 8.125 9.375 5 * 4.589
+                ".*_ankle_roll_joint": 5,   #3.125 4.375 5.625 6.875 8.125 9.375  5 * 1.467
             },
             # X6: J=0.0245 kg·m², Fc=0.5666 Nm, Fv=0.06872 Nm/(rad/s)
             armature={

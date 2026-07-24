@@ -254,12 +254,12 @@ class Robot3VelocityRewardCfg:
     feet_distance_lateral = RewTerm(
         func=mdp.feet_distance_lateral,
         weight=3.0,  # 增加权重以更严格惩罚双脚并拢
-        params={"min_distance": 0.19, "max_distance": 0.30}, 
+        params={"min_distance": 0.19, "max_distance": 0.28}, 
     )
     knee_distance_lateral = RewTerm(
         func=mdp.knee_distance_lateral,
         weight=3.0,
-        params={"min_distance": 0.19, "max_distance": 0.30},  
+        params={"min_distance": 0.19, "max_distance": 0.28},  
     )
     
     feet_y_distance = RewTerm(func=mdp.feet_y_distance, weight=-2.0)
